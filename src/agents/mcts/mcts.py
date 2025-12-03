@@ -11,10 +11,6 @@ def available_actions(state):
     return actions
 
 
-def check_terminal(state):
-    # TODO: use environment somehow
-    return terminal
-
 """plain UCT search"""
 
 class Node(object):
@@ -83,7 +79,7 @@ class UCTAgent(object):
         return max_uct_node
     
     def tree_policy(self, parent_node, parent_state):
-        while not check_terminal(parent_state):
+        while not self.env.check_terminal(parent_state):
             if not parent_node.is_full_expanded:
                 return self.expand(parent_node, parent_state)
             else:
@@ -94,7 +90,7 @@ class UCTAgent(object):
     
     def default_policy(self, state):
         # TODO: restrict search depth somehow
-        while not check_terminal(state):
+        while not self.env.check_terminal(state):
             actions = available_actions(state)
             num_actions = len(actions)
             idx = random.randint(0,num_actions-1)
