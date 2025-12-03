@@ -1,5 +1,16 @@
 import math
 
+"""functions associated with environment"""
+def transition(state, action):
+    # TODO: use environment somehow
+    return next_state
+
+def check_terminal(state):
+    # TODO: use environment somehow
+    return terminal
+
+"""plain UCT search"""
+
 C_p = 1/math.sqrt(2)
 
 class Node(object):
@@ -17,11 +28,7 @@ class Node(object):
         # TODO: randomly choose untried action
         # TODO: de-list tried action?
         return
-
-def transition(state, action):
-    # TODO: use environment somehow
-    return next_state
-
+    
 def expand(parent_node, parent_state, env):
     action = parent_node.untried_actions
     next_state = transition(parent_state, action)
