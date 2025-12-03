@@ -216,6 +216,32 @@ class raw_env(AECEnv, EzPickle):
         if self.render_mode == "human":
             self.render()
 
+    def reward(self, observation):
+        """Return +1 if player 1 has won, -1 if player 2 has won, or 0 otherwise."""
+        # The observation for player_1 has player_1 marks in plane 0.
+        # The observation for player_2 has player_2 marks in plane 0.
+        # We need a consistent view of the board to check for absolute winner.
+        
+        # Reconstruct board state from player_1's perspective
+        # observation['observation'] is a (3,3,2) numpy array
+        p1_plane = observation["observation"][:, :, 0]
+        p2_plane = observation["observation"][:, :, 1]
+
+        # winning_combinations are tuples of flat indices
+        winning_combinations = [
+            (0, 1, 2), (3, 4, 5), (6, 7, 8),  # rows
+            (0, 3, 6), (1, 4, 7), (2, 5, 8),  # cols
+            (0, 4, 8), (2, 4, 6),             # diags
+        ]
+
+        for combo in winning_combinations:
+            if all(p1_plane.flat[i] == 1 for i in combo):
+                return 1  # Player 1 wins
+            if all(p2_plane.flat[i] == 1 for i in combo):
+                return -1  # Player 2 wins
+
+        return 0  # Draw or game not over
+
     def reset(self, seed=None, options=None):
         self.board.reset()
 
