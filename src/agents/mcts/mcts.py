@@ -5,6 +5,10 @@ def transition(state, action):
     # TODO: use environment somehow
     return next_state
 
+def available_actions(state):
+    # TODO: use environment somehow
+    return actions
+
 def check_terminal(state):
     # TODO: use environment somehow
     return terminal
@@ -14,7 +18,7 @@ def check_terminal(state):
 C_p = 1/math.sqrt(2)
 
 class Node(object):
-    def __init__(self, available_actions, parent=None):
+    def __init__(self, available_actions, parent=None, incoming_action=None):
         self.parent = parent
         self.children = {} # keys are actions, values are Nodes
 
@@ -22,6 +26,7 @@ class Node(object):
         self.N = 0
 
         self.untried_actions = available_actions
+        self.incoming_action = incoming_action
         pass
 
     def sample_untried_actions(self):
@@ -29,12 +34,18 @@ class Node(object):
         # TODO: de-list tried action?
         return
     
-def expand(parent_node, parent_state, env):
+    def is_full_expanded(self):
+        if len(self.untried_actions) == 0:
+            return True
+        else:
+            return False
+    
+def expand(parent_node, parent_state):
     action = parent_node.untried_actions
     next_state = transition(parent_state, action)
-    next_actions = env.available_actions(next_state)
-    next_node = Node(available_actions=next_actions, parent=parent_node)
-    parent_node.children[action]
+    next_actions = available_actions(next_state)
+    next_node = Node(available_actions=next_actions, parent=parent_node, incoming_action=action)
+    parent_node.children[action] = next_node
     return next_node, next_state
 
 def best_child(parent_node):
@@ -60,3 +71,12 @@ def best_child(parent_node):
             max_uct_node = child_node
     return max_uct_node
 
+def tree_policy(parent_node, parent_state):
+    while not check_terminal(parent_state):
+        if not parent_node.is_full_expanded:
+            return expand(parent_node, parent_state)
+        else:
+            parent_node = best_child(parent_node)
+            a = parent_node.incoming_action
+            parent_state = transition(parent_state, a)
+    return parent_node, parent_state
