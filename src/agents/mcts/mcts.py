@@ -6,10 +6,6 @@ def transition(state, action):
     # TODO: use environment somehow
     return next_state
 
-def available_actions(state):
-    # TODO: use environment somehow
-    return actions
-
 
 """plain UCT search"""
 
@@ -50,7 +46,7 @@ class UCTAgent(object):
     def expand(self, parent_node, parent_state):
         action = parent_node.untried_actions
         next_state = transition(parent_state, action)
-        next_actions = available_actions(next_state)
+        next_actions = self.env.available_actions(next_state)
         next_node = Node(available_actions=next_actions, parent=parent_node, incoming_action=action)
         parent_node.children[action] = next_node
         return next_node, next_state
@@ -91,7 +87,7 @@ class UCTAgent(object):
     def default_policy(self, state):
         # TODO: restrict search depth somehow
         while not self.env.check_terminal(state):
-            actions = available_actions(state)
+            actions = self.env.available_actions(state)
             num_actions = len(actions)
             idx = random.randint(0,num_actions-1)
             a = actions[idx]
@@ -109,7 +105,7 @@ class UCTAgent(object):
             node = node.parent
 
     def uct_search(self, initial_state):
-        root_node = Node(available_actions(initial_state))
+        root_node = Node(self.env.available_actions(initial_state))
         while self.iter < self.max_iters:
             new_node, new_state = self.tree_policy(root_node, initial_state)
             outcome = self.default_policy(new_state)
