@@ -255,6 +255,11 @@ class raw_env(AECEnv, EzPickle):
             return True
         return False
 
+    def available_actions(self, observation):
+        """Return a list of legal moves to place a piece on the board."""
+        # The action_mask is a binary vector indicating legal moves.
+        return np.where(observation["action_mask"] == 1)[0].tolist()
+
     def reset(self, seed=None, options=None):
         self.board.reset()
 
