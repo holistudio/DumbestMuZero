@@ -259,6 +259,30 @@ class raw_env(AECEnv, EzPickle):
         """Return a list of legal moves to place a piece on the board."""
         # The action_mask is a binary vector indicating legal moves.
         return np.where(observation["action_mask"] == 1)[0].tolist()
+    
+    def transition(self, observation, action) -> dict:
+        """
+        Given an observation and an action, return the next observation.
+        Assumes the action is legal. The returned observation is from the perspective
+        of the next player.
+        """
+        # The observation is from the current player's perspective.
+        # Plane 0 is the current player's pieces, Plane 1 is the opponent's.
+        current_player_plane = observation["observation"][:, :, 0].copy()
+        opponent_plane = observation["observation"][:, :, 1].copy()
+
+        # Apply the current player's action to their plane.
+        # The action is a flat index for the 3x3 board.
+        np.put(current_player_plane, action, 1)
+
+        # The next observation is from the opponent's perspective.
+        # Their pieces are now on plane 0, and the (now previous) player's pieces are on plane 1.
+        next_obs_board = np.stack([opponent_plane, current_player_plane], axis=-1)
+
+        # Calculate the action mask for the new state.
+        occupied_mask = (next_obs_board[:, :, 0] + next_obs_board[:, :, 1]).flatten()
+        next_action_mask = 1 - occupied_mask
+        return {"observation": next_obs_board, "action_mask": next_action_mask.astype(np.int8)}
 
     def reset(self, seed=None, options=None):
         self.board.reset()
