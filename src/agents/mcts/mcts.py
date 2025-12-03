@@ -20,10 +20,6 @@ def check_terminal(state):
 
 """plain UCT search"""
 
-C_p = 0.7 # 1/math.sqrt(2)
-ITER = 0
-MAX_ITERS = 100_000
-
 class Node(object):
     def __init__(self, available_actions, parent=None, incoming_action=None):
         self.parent = parent
@@ -118,7 +114,8 @@ def uct_search(initial_state):
 
 
 class UCTAgent(object):
-    def __init__(self):
+    def __init__(self, C_p=0.7, max_iters=100000):
+        self.iter = 0
         pass
 
     def step(self):
