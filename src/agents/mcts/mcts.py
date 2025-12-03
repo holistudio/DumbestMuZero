@@ -21,6 +21,8 @@ def check_terminal(state):
 """plain UCT search"""
 
 C_p = 0.7 # 1/math.sqrt(2)
+ITER = 0
+MAX_ITERS = 100_000
 
 class Node(object):
     def __init__(self, available_actions, parent=None, incoming_action=None):
@@ -95,6 +97,8 @@ def default_policy(state):
         a = actions[idx]
         state = transition(state, a)
         outcome = reward(state)
+        # TODO: re-consider where computations are accounted for
+        ITER += 1
     return outcome
 
 def backup_negamax(node, outcome):
@@ -103,3 +107,11 @@ def backup_negamax(node, outcome):
         node.Q.append(outcome)
         outcome = -outcome
         node = node.parent
+
+def uct_search(initial_state):
+    root_node = Node(available_actions(initial_state))
+    while ITER < MAX_ITERS:
+        new_node, new_state = tree_policy(root_node, initial_state)
+        outcome = default_policy(new_state)
+        backup_negamax(new_node, outcome)
+    return best_child(root_node).incoming_action
