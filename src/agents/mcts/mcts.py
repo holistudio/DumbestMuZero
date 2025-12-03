@@ -115,7 +115,10 @@ def uct_search(initial_state):
 
 class UCTAgent(object):
     def __init__(self, C_p=0.7, max_iters=100000):
+        self.C_p = C_p
+
         self.iter = 0
+        self.max_iters = max_iters
         pass
 
     def step(self):
