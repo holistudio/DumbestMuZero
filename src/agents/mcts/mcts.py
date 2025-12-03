@@ -1,11 +1,6 @@
 import math
 import random
 
-"""functions associated with environment"""
-def transition(state, action):
-    # TODO: use environment somehow
-    return next_state
-
 
 """plain UCT search"""
 
@@ -45,7 +40,7 @@ class UCTAgent(object):
 
     def expand(self, parent_node, parent_state):
         action = parent_node.untried_actions
-        next_state = transition(parent_state, action)
+        next_state, _ = self.env.transition(parent_state, action)
         next_actions = self.env.available_actions(next_state)
         next_node = Node(available_actions=next_actions, parent=parent_node, incoming_action=action)
         parent_node.children[action] = next_node
@@ -81,7 +76,7 @@ class UCTAgent(object):
             else:
                 parent_node = self.best_child(parent_node)
                 a = parent_node.incoming_action
-                parent_state = transition(parent_state, a)
+                parent_state, _ = self.env.transition(parent_state, a)
         return parent_node, parent_state
     
     def default_policy(self, state):
@@ -91,7 +86,7 @@ class UCTAgent(object):
             num_actions = len(actions)
             idx = random.randint(0,num_actions-1)
             a = actions[idx]
-            state = transition(state, a)
+            state, _ = self.env.transition(state, a)
             outcome = self.env.outcome(state)
             # TODO: re-consider where computations are accounted for
             self.iter += 1
