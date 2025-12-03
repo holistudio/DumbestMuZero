@@ -1,6 +1,6 @@
-from pettingzoo.classic import tictactoe_v3
+import tictactoe
 
-env = tictactoe_v3.env(render_mode="human")
+env = tictactoe.env(render_mode="human")
 env.reset(seed=42)
 
 for agent in env.agent_iter():
