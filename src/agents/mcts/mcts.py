@@ -115,3 +115,14 @@ def uct_search(initial_state):
         outcome = default_policy(new_state)
         backup_negamax(new_node, outcome)
     return best_child(root_node).incoming_action
+
+
+class UCTAgent(object):
+    def __init__(self):
+        pass
+
+    def step(self):
+        pass
+
+    def act(self):
+        pass
