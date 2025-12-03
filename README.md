@@ -1,2 +1,3 @@
 # DumbestMuZero
-minimal implementation of MuZero
+
+minimal (and therefore the dumbest) implementation of MuZero
