@@ -45,11 +45,13 @@ class Node(object):
     
 
 class UCTAgent(object):
-    def __init__(self, C_p=0.7, max_iters=100000):
+    def __init__(self, environment, C_p=0.7, max_iters=100000):
         self.C_p = C_p
 
         self.iter = 0
         self.max_iters = max_iters
+
+        self.env = environment
         pass
 
     def expand(self, parent_node, parent_state):
