@@ -10,9 +10,6 @@ def available_actions(state):
     # TODO: use environment somehow
     return actions
 
-def reward(state):
-    # TODO: use environment somehow
-    return r
 
 def check_terminal(state):
     # TODO: use environment somehow
@@ -103,7 +100,7 @@ class UCTAgent(object):
             idx = random.randint(0,num_actions-1)
             a = actions[idx]
             state = transition(state, a)
-            outcome = reward(state)
+            outcome = self.env.outcome(state)
             # TODO: re-consider where computations are accounted for
             self.iter += 1
         return outcome
