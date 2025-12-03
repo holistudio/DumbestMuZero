@@ -20,7 +20,7 @@ def check_terminal(state):
 
 """plain UCT search"""
 
-C_p = 1/math.sqrt(2)
+C_p = 0.7 # 1/math.sqrt(2)
 
 class Node(object):
     def __init__(self, available_actions, parent=None, incoming_action=None):
