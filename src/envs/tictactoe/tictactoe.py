@@ -216,7 +216,7 @@ class raw_env(AECEnv, EzPickle):
         if self.render_mode == "human":
             self.render()
 
-    def reward(self, observation):
+    def outcome(self, observation):
         """Return +1 if player 1 has won, -1 if player 2 has won, or 0 otherwise."""
         # The observation for player_1 has player_1 marks in plane 0.
         # The observation for player_2 has player_2 marks in plane 0.
@@ -241,6 +241,19 @@ class raw_env(AECEnv, EzPickle):
                 return -1  # Player 2 wins
 
         return 0  # Draw or game not over
+    
+    def check_terminal(self, observation):
+        """Return True if the game is over, False otherwise."""
+        # Game is over if a player has won
+        if self.outcome(observation) != 0:
+            return True
+
+        # Game is also over if it's a draw (board is full)
+        p1_plane = observation["observation"][:, :, 0]
+        p2_plane = observation["observation"][:, :, 1]
+        if np.sum(p1_plane) + np.sum(p2_plane) == 9:
+            return True
+        return False
 
     def reset(self, seed=None, options=None):
         self.board.reset()
