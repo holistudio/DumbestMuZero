@@ -97,3 +97,9 @@ def default_policy(state):
         outcome = reward(state)
     return outcome
 
+def backup_negamax(node, outcome):
+    while node is not None:
+        node.N += 1
+        node.Q.append(outcome)
+        outcome = -outcome
+        node = node.parent
