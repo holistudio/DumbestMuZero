@@ -1,4 +1,5 @@
 import math
+import random
 
 """functions associated with environment"""
 def transition(state, action):
@@ -8,6 +9,10 @@ def transition(state, action):
 def available_actions(state):
     # TODO: use environment somehow
     return actions
+
+def reward(state):
+    # TODO: use environment somehow
+    return r
 
 def check_terminal(state):
     # TODO: use environment somehow
@@ -80,3 +85,15 @@ def tree_policy(parent_node, parent_state):
             a = parent_node.incoming_action
             parent_state = transition(parent_state, a)
     return parent_node, parent_state
+
+def default_policy(state):
+    # TODO: restrict search depth somehow
+    while not check_terminal(state):
+        actions = available_actions(state)
+        num_actions = len(actions)
+        idx = random.randint(0,num_actions-1)
+        a = actions[idx]
+        state = transition(state, a)
+        outcome = reward(state)
+    return outcome
+
