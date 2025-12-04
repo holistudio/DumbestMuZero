@@ -4,7 +4,7 @@ from agents.mcts.mcts import UCTAgent
 env = tictactoe.env(render_mode="human")
 env.reset(seed=42)
 
-agent1 = UCTAgent(environment=env,max_iters=10_000)
+agent1 = UCTAgent(environment=env)
 agent_list = [agent1, agent1]
 
 idx = 0
