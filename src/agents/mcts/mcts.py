@@ -1,6 +1,7 @@
 import math
 import random
 
+from agents.utils import display_board
 
 """plain UCT search"""
 
@@ -43,12 +44,15 @@ class UCTAgent(object):
         pass
 
     def expand(self, parent_node, parent_state):
-        # print('### EXPANDING')
+        print('### EXPANDING')
         action = parent_node.sample_untried_actions()
         next_state = self.env.transition(parent_state, action)
+        print('### NEXT STATE')
+        display_board(next_state)
         next_actions = self.env.available_actions(next_state)
         next_node = Node(available_actions=next_actions, parent=parent_node, incoming_action=action)
         parent_node.children[action] = next_node
+        pause = input('###')
         return next_node, next_state
     
     def best_child(self, parent_node):
@@ -76,20 +80,24 @@ class UCTAgent(object):
         return max_uct_node
     
     def tree_policy(self, parent_node, parent_state):
-        # print('# TREE POLICY')
+        print('# TREE POLICY')
+        print(f'# Terminal?: {self.env.check_terminal(parent_state)}')
         while not self.env.check_terminal(parent_state):
             if not parent_node.is_full_expanded():
-                # print('## EXPAND')
+                print('## EXPAND')
                 return self.expand(parent_node, parent_state)
             else:
-                # print('## EXPANDED => FIND BEST CHILD')
+                print('## EXPANDED => FIND BEST CHILD')
                 parent_node = self.best_child(parent_node)
                 a = parent_node.incoming_action
                 parent_state = self.env.transition(parent_state, a)
+                print('## BEST CHILD STATE')
+                display_board(parent_state)
+        pause = input('# END OF TREE POLICY ITER')
         return parent_node, parent_state
     
     def default_policy(self, state):
-        # print('# DEFAULT POLICY')
+        print('# DEFAULT POLICY')
         # TODO: restrict search depth somehow
         while not self.env.check_terminal(state):
             actions = self.env.available_actions(state)
@@ -97,9 +105,15 @@ class UCTAgent(object):
             idx = random.randint(0,num_actions-1)
             a = actions[idx]
             state = self.env.transition(state, a)
+            print('## NEXT SIM STATE')
+            print(state["observation"][:,:,0])
+            print(state["observation"][:,:,1])
+            display_board(state)
+            pause = input('##')
         outcome = self.env.outcome(state)
         # if outcome > 0:
-        #     print(f'## terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
+        print(f'# terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
+        pause = input('# END OF SIM')
         return outcome
     
     def backup_negamax(self, node, outcome):
@@ -119,9 +133,11 @@ class UCTAgent(object):
             self.backup_negamax(new_node, outcome)
             # TODO: re-consider where computations are accounted for
             self.iter += 1
+            pause = input('END OF SEARCH ITER')
         return self.best_child(root_node).incoming_action
 
     def step(self, obs):
+        display_board(obs)
         self.iter = 0
         return self.uct_search(obs)
 
