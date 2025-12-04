@@ -220,12 +220,19 @@ class raw_env(AECEnv, EzPickle):
         """Return +1 if player 1 has won, -1 if player 2 has won, or 0 otherwise."""
         # The observation for player_1 has player_1 marks in plane 0.
         # The observation for player_2 has player_2 marks in plane 0.
+        # observation["observation"][:, :, 0] is the current player's marks.
         # We need a consistent view of the board to check for absolute winner.
-        
-        # Reconstruct board state from player_1's perspective
-        # observation['observation'] is a (3,3,2) numpy array
-        p1_plane = observation["observation"][:, :, 0]
-        p2_plane = observation["observation"][:, :, 1]
+
+        current_player_plane = observation["observation"][:, :, 0]
+        opponent_plane = observation["observation"][:, :, 1]
+        total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
+
+        # If total pieces is even, it's player 1's turn (current player is p1)
+        # If total pieces is odd, it's player 2's turn (current player is p2)
+        if total_pieces % 2 == 0:
+            p1_plane, p2_plane = current_player_plane, opponent_plane
+        else:
+            p2_plane, p1_plane = current_player_plane, opponent_plane
 
         # winning_combinations are tuples of flat indices
         winning_combinations = [
