@@ -55,7 +55,7 @@ class UCTAgent(object):
         # print('### BEST CHILD')
         N = parent_node.N
         max_uct_node = None
-        max_uct_value = - float('inf')
+        max_uct_value = -float('inf')
 
         for a in parent_node.children:
             child_node = parent_node.children[a]
@@ -67,8 +67,8 @@ class UCTAgent(object):
                 uct_value = float('inf')
             else:
                 exploitation_term = (q/n_child)
-                explortation_term = 2*self.C_p*math.sqrt(2*math.log(N)/n_child)
-                uct_value = exploitation_term + explortation_term
+                exploration_term = 2*self.C_p*math.sqrt(2*math.log(N)/n_child)
+                uct_value = exploitation_term + exploration_term
             
             if uct_value > max_uct_value:
                 max_uct_value = uct_value
@@ -98,8 +98,8 @@ class UCTAgent(object):
             a = actions[idx]
             state = self.env.transition(state, a)
         outcome = self.env.outcome(state)
-        if outcome > 0:
-            print(f'## terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
+        # if outcome > 0:
+        #     print(f'## terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
         return outcome
     
     def backup_negamax(self, node, outcome):
@@ -113,8 +113,7 @@ class UCTAgent(object):
     def uct_search(self, initial_state):
         root_node = Node(self.env.available_actions(initial_state))
         while self.iter < self.max_iters:
-            if self.iter % 10000 == 0:
-                print(self.iter)
+            # print(self.iter)
             new_node, new_state = self.tree_policy(root_node, initial_state)
             outcome = self.default_policy(new_state)
             self.backup_negamax(new_node, outcome)
