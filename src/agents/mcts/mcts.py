@@ -140,7 +140,7 @@ class UCTAgent(object):
                 best_action = a
         print("# NEXT BOARD STATE")
         display_board(self.env.transition(initial_state, best_action))
-        pause = input('#')
+        # pause = input('#')
         return best_action
 
     def uct_search(self, initial_state):
