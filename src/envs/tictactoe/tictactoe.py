@@ -79,7 +79,7 @@ from gymnasium import spaces
 from gymnasium.utils import EzPickle
 
 from pettingzoo import AECEnv
-from board import TTT_GAME_NOT_OVER, TTT_TIE, Board
+from envs.tictactoe.board import TTT_GAME_NOT_OVER, TTT_TIE, Board
 from pettingzoo.utils import AgentSelector, wrappers
 
 
