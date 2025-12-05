@@ -35,12 +35,11 @@ class Node(object):
     
 
 class UCTAgent(object):
-    def __init__(self, environment, p1=True, C_p=0.7, max_iters=10_000):
+    def __init__(self, environment, C_p=0.7, max_iters=10_000):
         self.C_p = C_p
         self.max_iters = max_iters
 
         self.env = environment
-        self.p1 = p1
         pass
 
     def expand(self, parent_node, parent_state):
@@ -99,8 +98,7 @@ class UCTAgent(object):
         # print('# START BOARD')
         # display_board(state)
         # print('# DEFAULT POLICY')
-        # TODO: restrict search depth somehow
-        c=0
+        # c = 0
         while not self.env.check_terminal(state):
             actions = self.env.available_actions(state)
             num_actions = len(actions)
@@ -111,29 +109,15 @@ class UCTAgent(object):
             # print(state["observation"][:,:,0])
             # print(state["observation"][:,:,1])
             # display_board(state)
-            c += 1
+            # c += 1
             # pause = input('##')
         outcome = self.env.outcome(state) 
-        # if not self.p1:
-        #     outcome = -outcome
-        # if outcome > 0:
         # print(f'# terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
         # pause = input('# END OF SIM\n')
         return outcome
     
     def backup_negamax(self, node, outcome):
         # print(f'# BACKUP RECEIVES Outcome: {outcome}\n')
-        # current_player_plane = node.state["observation"][:, :, 0]
-        # opponent_plane = node.state["observation"][:, :, 1]
-        # total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
-        
-        # if total_pieces % 2 != 0:
-        #     if not self.p1:
-        #         outcome = -outcome
-        # else:
-        #     if self.p1:
-        #         outcome = -outcome
-
         while node is not None:
             # display_board(node.state)
             # print(f"# BOARD Outcome: {outcome}\n")
@@ -144,11 +128,11 @@ class UCTAgent(object):
         # pause = input('# END BACKUP\n')
     
     def final_action(self, root_node, initial_state):
-        print('# FINAL ACTION')
+        print('# DECIDE ACTION')
         N = root_node.N
         best_action = None
         max_visits = -1
-        # for action, child in sorted(root_node.children.items()):
+        
         for a in sorted(root_node.children):
             child_node = root_node.children[a]
             avg_q = sum(child_node.Q) / child_node.N if child_node.N > 0 else 0
@@ -160,7 +144,7 @@ class UCTAgent(object):
             if child_node.N > max_visits:
                 max_visits = child_node.N
                 best_action = a
-        print("# NEXT BOARD STATE")
+        print(f"\n# PLACE at CELL {best_action}")
         display_board(self.env.transition(initial_state, best_action))
         # pause = input('#')
         return best_action
