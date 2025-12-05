@@ -5,8 +5,8 @@ env = tictactoe.env(render_mode="human")
 
 
 agent1 = UCTAgent(environment=env)
-agent2 = UCTAgent(environment=env, p1=False)
-agent_list = [agent1, agent2]
+
+agent_list = [agent1 , agent1]
 
 
 for _ in range(5):
@@ -19,6 +19,10 @@ for _ in range(5):
         if termination or truncation:
             action = None
         else:
+            if a == 'player_1':
+                print('\nPLAYER X TURN')
+            else:
+                print('\nPLAYER O TURN')
             mask = observation["action_mask"]
             if agent == 'random':
                 action = env.action_space(a).sample(mask)
@@ -27,5 +31,5 @@ for _ in range(5):
 
         env.step(action)
         idx = (idx+1) % 2
-    pause = input('press enter for new game')
+    pause = input('\npress enter for new game')
 env.close()
