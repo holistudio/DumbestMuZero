@@ -250,9 +250,15 @@ class raw_env(AECEnv, EzPickle):
 
         for combo in winning_combinations:
             if all(p1_plane.flat[i] == 1 for i in combo):
-                return 1*outcome_sign  # Player 1 wins
+                if self.agent_selection == 'player_1':
+                    return 1*outcome_sign
+                else:
+                    return -1*outcome_sign
             if all(p2_plane.flat[i] == 1 for i in combo):
-                return -1*outcome_sign  # Player 2 wins
+                if self.agent_selection == 'player_2':
+                    return -1*outcome_sign*-1 
+                else:
+                    return -1*outcome_sign
 
         return 0  # Draw or game not over
     
