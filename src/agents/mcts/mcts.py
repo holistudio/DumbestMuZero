@@ -123,16 +123,16 @@ class UCTAgent(object):
     
     def backup_negamax(self, node, outcome):
         # print(f'# BACKUP RECEIVES Outcome: {outcome}\n')
-        current_player_plane = node.state["observation"][:, :, 0]
-        opponent_plane = node.state["observation"][:, :, 1]
-        total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
+        # current_player_plane = node.state["observation"][:, :, 0]
+        # opponent_plane = node.state["observation"][:, :, 1]
+        # total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
         
-        if total_pieces % 2 != 0:
-            if not self.p1:
-                outcome = -outcome
-        else:
-            if self.p1:
-                outcome = -outcome
+        # if total_pieces % 2 != 0:
+        #     if not self.p1:
+        #         outcome = -outcome
+        # else:
+        #     if self.p1:
+        #         outcome = -outcome
 
         while node is not None:
             # display_board(node.state)
