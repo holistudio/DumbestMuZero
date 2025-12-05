@@ -30,8 +30,6 @@ def display_board(observation):
 
     # print(p1_plane)
     # print(p2_plane)
-
-    print()
     print("BOARD")
     print("=====")
     for i,row in enumerate(board):
