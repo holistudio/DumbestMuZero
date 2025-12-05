@@ -227,12 +227,19 @@ class raw_env(AECEnv, EzPickle):
         opponent_plane = observation["observation"][:, :, 1]
         total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
 
+        outcome_sign = 1
         # If total pieces is even, it's player 1's turn (current player is p1)
         # If total pieces is odd, it's player 2's turn (current player is p2)
         if total_pieces % 2 == 0:
             p1_plane, p2_plane = current_player_plane, opponent_plane
+            if self.agent_selection == 'player_1':
+                outcome_sign = -1
         else:
             p2_plane, p1_plane = current_player_plane, opponent_plane
+            if self.agent_selection == 'player_2':
+                outcome_sign = -1
+
+        # p1_plane, p2_plane = current_player_plane, opponent_plane
 
         # winning_combinations are tuples of flat indices
         winning_combinations = [
@@ -243,9 +250,9 @@ class raw_env(AECEnv, EzPickle):
 
         for combo in winning_combinations:
             if all(p1_plane.flat[i] == 1 for i in combo):
-                return 1  # Player 1 wins
+                return 1*outcome_sign  # Player 1 wins
             if all(p2_plane.flat[i] == 1 for i in combo):
-                return -1  # Player 2 wins
+                return -1*outcome_sign  # Player 2 wins
 
         return 0  # Draw or game not over
     
