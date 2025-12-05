@@ -256,7 +256,7 @@ class raw_env(AECEnv, EzPickle):
                     return -1*outcome_sign
             if all(p2_plane.flat[i] == 1 for i in combo):
                 if self.agent_selection == 'player_2':
-                    return -1*outcome_sign*-1 
+                    return 1*outcome_sign 
                 else:
                     return -1*outcome_sign
 
