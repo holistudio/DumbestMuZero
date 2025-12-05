@@ -114,8 +114,8 @@ class UCTAgent(object):
             c += 1
             # pause = input('##')
         outcome = self.env.outcome(state) 
-        if not self.p1:
-            outcome = -outcome
+        # if not self.p1:
+        #     outcome = -outcome
         # if outcome > 0:
         # print(f'# terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
         # pause = input('# END OF SIM\n')
