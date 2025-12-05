@@ -166,5 +166,5 @@ class UCTAgent(object):
         display_board(obs)
         return self.uct_search(obs)
 
-    def act(self):
-        pass
+    def act(self, obs):
+        return self.step(obs)
