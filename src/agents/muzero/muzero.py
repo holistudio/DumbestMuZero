@@ -60,3 +60,23 @@ class PredictionFunction(nn.Module):
         p = self.policy_head(x)
         v = self.value_head(x)
         return p, v
+    
+
+class MCTS(nn.Module):
+    def __init__(self, input_size, state_size, policy_size, hidden_size, K=10):
+        super().__init__()
+        self.rep = StateFunction(input_size, state_size, hidden_size)
+        self.dynamics = DynamicsFunction(input_size, state_size, hidden_size)
+        self.prediction = PredictionFunction(input_size, policy_size, hidden_size)
+
+        self.K = K
+        pass
+
+    def forward(self, obs):
+        state = self.rep(obs)
+        tree = {} # TODO: figure out tree structure for exploring actions and tracking function outputs
+        for _ in range(self.K):
+            action = todo() # TODO: sample available and unxplored actions only 
+            state, reward = self.dynamics(state, action)
+            policy_params, value = self.prediction(state)
+        return tree
