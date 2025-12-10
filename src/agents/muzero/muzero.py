@@ -140,14 +140,14 @@ class MuZeroAgent(object):
             l_v = self.value_loss(v[k], z[k])
             l_p = self.policy_loss(p[k], pi[k])
             theta = params[k] # TODO: what params go here? neural nets'?
-            loss += l_r + l_v + l_p + self.c * theta # TODO: probably need L2 norm
+            loss += l_r + l_v + l_p + self.c * theta # TODO: probably need L2 norm for regularization
         return  loss
     
     def store(self, u, z):
+        # TODO: store recent returns from environment
         pass
     
     def update(self, u, z):
-        # TODO: store recent returns from environment
         self.store(u, z)
 
         # TODO: check if ReplayBuffer is full
