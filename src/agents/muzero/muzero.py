@@ -2,6 +2,34 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class Node(object):
+    def __init__(self, state, policy, value, available_actions, parent=None, incoming_action=None):
+        self.parent = parent
+        self.children = {} # keys are actions, values are Nodes
+
+        self.state = state
+        self.policy = policy
+        self.value = value
+
+        self.untried_actions = available_actions
+        self.incoming_action = incoming_action
+        pass
+
+    def sample_untried_actions(self):
+        # print(f"before: {self.untried_actions}")
+        num_actions = len(self.untried_actions)
+        idx = torch.randint(0, num_actions)
+        a = self.untried_actions.pop(idx)
+        # print(f"action: {a}")
+        # print(f"after: {self.untried_actions}")
+        return a
+    
+    def is_full_expanded(self):
+        if len(self.untried_actions) == 0:
+            return True
+        else:
+            return False
+        
 class StateFunction(nn.Module):
     def __init__(self, input_size, output_size, hidden_size):
         super().__init__()
