@@ -83,16 +83,20 @@ class MuZeroAgent(object):
         self.c = c # L2 regularization term
         pass
 
+    def sample_action(self, action_probs):
+        # TODO: given action probabilities, sample action
+        return action
+    
     def policy_function(self, tree):
         # TODO: use policies from MCTS to produce a policy
         # and output action scores
         return action_scores
     
     def sample_policy(self, tree, action_mask):
-        action_scores = policy_function(tree)
+        action_scores = self.policy_function(tree)
         action_scores = action_scores[action_mask]
         action_probs = torch.softmax(action_scores)
-        action = sample(action_probs)
+        action = self.sample_action(action_probs)
         return action
     
     def value_function(self, tree):
