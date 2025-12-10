@@ -2,11 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def preprocess_obs(observation):
-    # TODO: pre-process observation dictionary into tensor
-    obs = observation
-    return obs
-
 class StateFunction(nn.Module):
     def __init__(self, input_size, output_size, hidden_size):
         super().__init__()
@@ -103,8 +98,14 @@ class MuZeroAgent(object):
     def value_function(self, tree):
         # TODO: use values predicted during MCTS to output a final value estimate
         return v
+    
+    def preprocess_obs(self, observation):
+        # TODO: pre-process observation dictionary into tensor
+        obs = observation
+        return obs
 
     def step(self, obs, action_mask):
+        obs = self.preprocess_obs(obs)
         tree = MCTS(obs)
         action =  self.sample_policy(tree, action_mask)
         value = self.value_function(tree)
