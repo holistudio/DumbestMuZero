@@ -34,7 +34,8 @@
    - [ ] loop needs to use something akin to tree policy and default policy
    - [ ] use policies from MCTS to produce a policy
    - [ ] use values predicted during MCTS to output a final value estimate
-   - [ ] sample available and unxplored actions only 
+   - [ ] sample available and unexplored actions only 
+   - [ ] but what happens when there are no more unexplored actions
    - [ ] pre-process observation dictionary into tensor
 
    - [ ] Store => ReplayBuffer => Loss => Backprop
@@ -50,3 +51,4 @@
       - [ ] value loss term
       - [ ] policy loss term
       - [ ] get loss.backward() to work
+   - [ ] for tic tac toe the search depth should be tracked to within 9 total steps
