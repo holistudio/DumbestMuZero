@@ -30,3 +30,23 @@
  - [X] Read the MuZero paper: https://arxiv.org/abs/1911.08265
  - [ ] Watch talk: https://www.youtube.com/watch?v=L0A86LmH7Yw
  - [ ] Write from scratch without looking at pseudocode.
+   - [ ] figure out tree structure for exploring actions and tracking function outputs
+   - [ ] loop needs to use something akin to tree policy and default policy
+   - [ ] use policies from MCTS to produce a policy
+   - [ ] use values predicted during MCTS to output a final value estimate
+   - [ ] sample available and unxplored actions only 
+   - [ ] pre-process observation dictionary into tensor
+
+   - [ ] Store => ReplayBuffer => Loss => Backprop
+      - [ ] push action and value to ReplayBuffer
+      - [ ] get these to be tuples of K records from tree search + replay buffer?
+      - [ ] what params go here? neural nets'?
+      - [ ] probably need L2 norm for regularization
+      - [ ] store recent returns from environment
+      - [ ] check if ReplayBuffer is full
+      - [ ] loop through ReplayBuffer
+      - [ ] loss function
+      - [ ] reward loss term
+      - [ ] value loss term
+      - [ ] policy loss term
+      - [ ] get loss.backward() to work
