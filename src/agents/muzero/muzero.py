@@ -189,19 +189,27 @@ def select_action(node):
     return best_action
 
 def search(obs):
-    root_node = Node(0)
-    state = StateFunction(obs)
-    reward = 0
     action_history = []
-
-    policy_logits, value = PredictionFunction(state)
+    root_node = Node(0)
+    initial_state = StateFunction(obs)
+    policy_logits, value = PredictionFunction(initial_state)
     legal_actions = get_legal_actions(obs, action_history, env)
-    expansion(root_node, state, reward, policy_logits, legal_actions, action_history)
+    expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
+    backup(value, [root_node]) # Backup the value of the root
+
     for _ in range(MAX_ITERS):
         last_node, search_path, action_history = selection(root_node)
-        state, reward = DynamicsFunction(last_node.state, action_history[-1])
+
+        parent_node = search_path[-2]
+        state, reward = DynamicsFunction(parent_node.state, action_history[-1])
         policy_logits, value = PredictionFunction(state)
+        
         legal_actions = get_legal_actions(obs, action_history, env)
-        expansion(last_node, state, reward, policy_logits, legal_actions)
+        expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
+        
         backup(value, search_path)
     return select_action(root_node)
+
+def step(observation):
+    obs = preprocess_obs(observation)
+    return search(obs)
