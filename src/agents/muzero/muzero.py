@@ -1,5 +1,9 @@
 import math
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 ACTION_SPACE = [a for a in range(9)]
 
 MIN_Q = float('inf')
@@ -13,9 +17,71 @@ def whose_turn():
         return 0 # player 1's turn
     else:
         return 1 # player 2's turn
+
+def preprocess_obs(self, observation):
+    # pre-process observation dictionary into tensor
+    obs = torch.zeros((3,3), dtype=torch.float32)
+    current_player_plane = torch.tensor(observation["observation"][:, :, 0])
+    opponent_plane = torch.tensor(observation["observation"][:, :, 1]) * 2
+    obs = obs + current_player_plane + opponent_plane
+    obs = obs.reshape((9,1)).squeeze()
+    return obs
     
 MAX_ITERS = 800
 GAMMA = 0.8
+
+class StateFunction(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size):
+        super().__init__()
+        self.lin1 = nn.Linear(input_size, hidden_size)
+        self.lin2 = nn.Linear(hidden_size, hidden_size)
+        self.lin3 = nn.Linear(hidden_size, output_size)
+        pass
+
+    def forward(self, obs):
+        x = self.lin1(obs)
+        x = F.gelu(x)
+        x = self.lin2(x)
+        x = F.gelu(x)
+        x = self.lin3(x)
+        return x
+
+class DynamicsFunction(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size):
+        super().__init__()
+        self.lin1 = nn.Linear(input_size, hidden_size)
+        self.lin2 = nn.Linear(hidden_size, hidden_size)
+        self.state_head = nn.Linear(hidden_size, output_size)
+        self.reward_head = nn.Linear(hidden_size, 1)
+        pass
+
+    def forward(self, s_prev, a):
+        x = torch.cat((s_prev, a))
+        x = self.lin1(x)
+        x = F.gelu(x)
+        x = self.lin2(x)
+        x = F.gelu(x)
+        s = self.state_head(x)
+        r = self.reward_head(x)
+        return s, r
+    
+class PredictionFunction(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size):
+        super().__init__()
+        self.lin1 = nn.Linear(input_size, hidden_size)
+        self.lin2 = nn.Linear(hidden_size, hidden_size)
+        self.policy_head = nn.Linear(hidden_size, output_size)
+        self.value_head = nn.Linear(hidden_size, 1)
+        pass
+
+    def forward(self, s):
+        x = self.lin1(s)
+        x = F.gelu(x)
+        x = self.lin2(x)
+        x = F.gelu(x)
+        p = self.policy_head(x)
+        v = self.value_head(x)
+        return p, v
 
 class Node(object):
     def __init__(self, prior):
@@ -116,16 +182,16 @@ def select_action(node):
             best_action = a
     return best_action
 
-def mcts_search(obs):
+def search(obs):
     root_node = Node(0)
-    state = representation_function(obs)
+    state = StateFunction(obs)
     reward = 0
-    policy_logits, value = prediction_function(state)
+    policy_logits, value = PredictionFunction(state)
     expansion(root_node, state, reward, policy_logits)
     for _ in range(MAX_ITERS):
         last_node = selection(root_node)
-        state, reward = dynamics_function(last_node.state, ACTION_HISTORY[-1])
-        policy_logits, value = prediction_function(state)
+        state, reward = DynamicsFunction(last_node.state, ACTION_HISTORY[-1])
+        policy_logits, value = PredictionFunction(state)
         expansion(last_node, state, reward, policy_logits)
         backup(value)
     return select_action(root_node)
