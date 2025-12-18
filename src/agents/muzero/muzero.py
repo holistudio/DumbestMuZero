@@ -163,7 +163,7 @@ def selection(node):
         action_history.append(action)
     return node, search_path, action_history
 
-def backup(value, search_path):
+def backup(value, search_path, action_history):
     L = len(search_path)
     # initialize with value estimate
     G = value
@@ -173,7 +173,7 @@ def backup(value, search_path):
         if k < L - 1: # when not the leaf node
             reward = search_path[k+1].R
             G = reward + GAMMA * G
-        current_node.value_sum += G
+        current_node.value_sum += G if current_node.current_player == whose_turn(action_history) else -G
         current_node.N += 1
         update_min_max_Q(current_node.mean_value())
     pass
@@ -186,7 +186,7 @@ def search(obs):
     policy_logits, value = PredictionFunction(initial_state)
     legal_actions = get_legal_actions(obs, action_history, env)
     expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
-    backup(value, search_path) # backup the value of the root
+    backup(value, search_path, action_history) # backup the value of the root
 
     for _ in range(MAX_ITERS):
         last_node, search_path, action_history = selection(root_node)
@@ -198,7 +198,7 @@ def search(obs):
         legal_actions = get_legal_actions(obs, action_history, env)
         expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
         
-        backup(value, search_path)
+        backup(value, search_path, action_history)
     return select_action(root_node)
 
 def select_action(node):
