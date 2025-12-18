@@ -103,8 +103,12 @@ class Node(object):
         else:
             return 0
         
-def update_min_max_Q(root_node):
-    # TODO: keep track of min Q and max Q over entire tree
+def update_min_max_Q(node_mean_value):
+    # keep track of min Q and max Q over entire tree
+    if node_mean_value > MAX_Q:
+        MAX_Q = node_mean_value
+    elif node_mean_value < MIN_Q:
+        MIN_Q = node_mean_value
     pass
 
 def expansion(last_node, state, reward, policy_logits):
@@ -155,8 +159,6 @@ def selection(node):
         node, action = select_child(node)
         SEARCH_PATH.append(node)
         ACTION_HISTORY.append(action)
-        next_state = node.state
-        next_reward = node.reward
     return node
 
 def backup(value):
@@ -171,9 +173,11 @@ def backup(value):
             G += GAMMA**k * reward + GAMMA**(k) * value
         current_node.value_sum = current_node.N * current_node.mean_value() + G
         current_node.N += 1
+        update_min_max_Q(current_node.mean_value())
     pass
 
 def select_action(node):
+    # TODO: revise this to sample with softmax and temperature
     max_visits = -1
     best_action = None
     for a, child_node in node.children.items():
