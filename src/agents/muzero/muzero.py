@@ -26,7 +26,13 @@ def preprocess_obs(self, observation):
     obs = obs + current_player_plane + opponent_plane
     obs = obs.reshape((9,1)).squeeze()
     return obs
-    
+
+def get_legal_actions(observation, history, env):
+    if len(history) > 0:
+        for a in history:
+            observation = env.transition(observation, a)
+    return env.available_actions(observation)
+
 MAX_ITERS = 800
 GAMMA = 0.8
 
@@ -111,11 +117,13 @@ def update_min_max_Q(node_mean_value):
         MIN_Q = node_mean_value
     pass
 
-def expansion(last_node, state, reward, policy_logits):
+def expansion(last_node, state, reward, policy_logits, legal_actions):
     last_node.state = state
     last_node.reward = reward
     last_node.current_player = whose_turn()
-    policy = {a: math.exp(policy_logits[a]) for a in ACTION_SPACE}
+
+    # mask illegal actions and normalize the policy over legal moves
+    policy = {a: math.exp(policy_logits[a]) for a in legal_actions}
     policy_sum = sum(policy.values())
     for a in policy.keys():
         last_node.children[a] = Node(policy[a]/policy_sum)
@@ -191,11 +199,13 @@ def search(obs):
     state = StateFunction(obs)
     reward = 0
     policy_logits, value = PredictionFunction(state)
-    expansion(root_node, state, reward, policy_logits)
+    legal_actions = get_legal_actions(obs, ACTION_HISTORY, env)
+    expansion(root_node, state, reward, policy_logits, legal_actions)
     for _ in range(MAX_ITERS):
         last_node = selection(root_node)
         state, reward = DynamicsFunction(last_node.state, ACTION_HISTORY[-1])
         policy_logits, value = PredictionFunction(state)
-        expansion(last_node, state, reward, policy_logits)
+        legal_actions = get_legal_actions(obs, ACTION_HISTORY, env)
+        expansion(last_node, state, reward, policy_logits, legal_actions)
         backup(value)
     return select_action(root_node)
