@@ -165,14 +165,15 @@ def selection(node):
 
 def backup(value, search_path):
     L = len(search_path)
-    for k in range(L-2, -1, -1):
+    # initialize with value estimate
+    G = value
+    # iterate backwards from the leaf's parent
+    for k in range(L - 2, -1, -1):
         current_node = search_path[k]
-        G = 0
-        for tau in range(0, L-k):
-            lookup_node = search_path[k+1+tau]
-            reward = lookup_node.R
-            G += GAMMA**k * reward + GAMMA**(k) * value
-        current_node.value_sum = current_node.N * current_node.mean_value() + G
+        # reward is from the transition *to* the next state in the path.
+        reward = search_path[k+1].R
+        G = reward + GAMMA * G
+        current_node.value_sum += G
         current_node.N += 1
         update_min_max_Q(current_node.mean_value())
     pass
