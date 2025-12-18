@@ -15,6 +15,7 @@ def whose_turn():
         return 1 # player 2's turn
     
 MAX_ITERS = 800
+GAMMA = 0.8
 
 class Node(object):
     def __init__(self, prior):
@@ -24,7 +25,6 @@ class Node(object):
         self.R = 0
         self.current_player = -1
 
-        self.parent = None
         self.children = {}
         pass
 
@@ -44,17 +44,77 @@ def update_min_max_Q(root_node):
 def expansion(last_node, state, reward, policy_logits):
     last_node.state = state
     last_node.reward = reward
+    last_node.current_player = whose_turn()
     policy = {a: math.exp(policy_logits[a]) for a in ACTION_SPACE}
     policy_sum = sum(policy.values())
     for a in policy.keys():
         last_node.children[a] = Node(policy[a]/policy_sum)
     pass
 
+def pUCT(node, sum_visits):
+    # refer to Equation 2, Appendix B
+    c1 = 1.25
+    c2 = 19652
+    Q = node.mean_value()
+    Q = Q - MIN_Q / (MAX_Q - MIN_Q)
+    N = node.N
+    P = node.P
+    N_sum = sum_visits
+    return (Q + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
 
 
+def select_child(node):
+    sum_visits = 0
+    for a in node.children:
+        child_node = node.children[a]
+        sum_visits += child_node.N
 
+    best_uct = -float('inf')
+    best_child = None
+    for a, child_node in node.children.items():
+        uct = pUCT(child_node, sum_visits)
+        if uct > best_uct:
+            best_uct = uct
+            best_action = a
+            best_child = child_node
+    return best_child, best_action
 
+def selection(node):
+    global SEARCH_PATH
+    global ACTION_HISTORY
+    SEARCH_PATH = [node]
+    ACTION_HISTORY = []
 
+    while node.expanded():
+        node, action = select_child(node)
+        SEARCH_PATH.append(node)
+        ACTION_HISTORY.append(action)
+        next_state = node.state
+        next_reward = node.reward
+    return node
+
+def backup(value):
+    global SEARCH_PATH
+    L = len(SEARCH_PATH)
+    for k in range(L-2, -1, -1):
+        current_node = SEARCH_PATH[k]
+        G = 0
+        for tau in range(0, L-k):
+            lookup_node = SEARCH_PATH[k+1+tau]
+            reward = lookup_node.R
+            G += GAMMA**k * reward + GAMMA**(k) * value
+        current_node.value_sum = current_node.N * current_node.mean_value() + G
+        current_node.N += 1
+    pass
+
+def select_action(node):
+    max_visits = -1
+    best_action = None
+    for a, child_node in node.children.items():
+        if child_node.N > max_visits:
+            max_visits = child_node.N
+            best_action = a
+    return best_action
 
 def mcts_search(obs):
     root_node = Node(0)
@@ -63,6 +123,9 @@ def mcts_search(obs):
     policy_logits, value = prediction_function(state)
     expansion(root_node, state, reward, policy_logits)
     for _ in range(MAX_ITERS):
-        last_node = selection(state)
-        expansion(last_node)
-        backup()
+        last_node = selection(root_node)
+        state, reward = dynamics_function(last_node.state, ACTION_HISTORY[-1])
+        policy_logits, value = prediction_function(state)
+        expansion(last_node, state, reward, policy_logits)
+        backup(value)
+    return select_action(root_node)
