@@ -29,26 +29,37 @@
 
  - [X] Read the MuZero paper: https://arxiv.org/abs/1911.08265
  - [ ] Watch talk: https://www.youtube.com/watch?v=L0A86LmH7Yw
- - [ ] Write from scratch without looking at pseudocode.
-   - [ ] figure out tree structure for exploring actions and tracking function outputs
-   - [ ] loop needs to use something akin to tree policy and default policy
-   - [ ] use policies from MCTS to produce a policy
-   - [ ] use values predicted during MCTS to output a final value estimate
-   - [ ] sample available and unexplored actions only 
-   - [ ] but what happens when there are no more unexplored actions
-   - [ ] pre-process observation dictionary into tensor
+ - [x] Write MuZero's MCTS / "forward pass" from scratch ~~without looking at pseudocode~~ peeking at pseudocode.
+   - [x] figure out tree structure for exploring actions and tracking function outputs
+   - [x] loop needs to use something akin to tree policy and default policy
+   - [x] use policy logits from MCTS to produce a policy
+   - [x] ~~use values predicted during MCTS to output a final value estimate~~ (value used during training, not search)
+   - [x] ~~sample available and unexplored actions only~~ all possible actions in action space are added during the expansion phase of MuZero search
+   - [x] but what happens when there are no more unexplored actions
+   - [x] pre-process observation dictionary into tensor
+- [ ] Review forward pass functions with Gemini step by step
 
-   - [ ] Store => ReplayBuffer => Loss => Backprop
-      - [ ] push action and value to ReplayBuffer
-      - [ ] get these to be tuples of K records from tree search + replay buffer?
-      - [ ] what params go here? neural nets'?
-      - [ ] probably need L2 norm for regularization
-      - [ ] store recent returns from environment
-      - [ ] check if ReplayBuffer is full
-      - [ ] loop through ReplayBuffer
-      - [ ] loss function
-      - [ ] reward loss term
-      - [ ] value loss term
-      - [ ] policy loss term
-      - [ ] get loss.backward() to work
-   - [ ] for tic tac toe the search depth should be tracked to within 9 total steps
+- [ ] Store => ReplayBuffer => Loss => Backprop
+   - [ ] push action and value to ReplayBuffer
+   - [ ] get these to be tuples of K records from tree search + replay buffer?
+   - [ ] what params go here? neural nets'?
+   - [ ] probably need L2 norm for regularization
+   - [ ] store recent returns from environment
+   - [ ] check if ReplayBuffer is full
+   - [ ] loop through ReplayBuffer
+   - [ ] loss function
+   - [ ] reward loss term
+   - [ ] value loss term
+   - [ ] policy loss term
+   - [ ] weight decay/regularization term
+   - [ ] get loss.backward() to work
+
+- [ ] Fit into `gymnasium` agent-game loop pattern
+   - [ ] `agent.step(obs)`
+   - [ ] `agent.update()`
+- [ ] for tic tac toe the search depth should be tracked to within 9 total steps
+
+- [ ] Get a full code review
+
+- [ ] `select_action()` just chooses next action based on node with highest number of visits. this isn't "sampling from probability distribution". consider adding softmax/temperature computations
+
