@@ -170,8 +170,7 @@ def backup(value, search_path):
     # iterate backwards from the leaf node to the root
     for k in range(L - 1, -1, -1):
         current_node = search_path[k]
-        if k < L - 1: # Not the leaf node
-            # reward is from the transition *to* the next state in the path.
+        if k < L - 1: # when not the leaf node
             reward = search_path[k+1].R
             G = reward + GAMMA * G
         current_node.value_sum += G
@@ -201,7 +200,6 @@ def search(obs):
         
         backup(value, search_path)
     return select_action(root_node)
-
 
 def select_action(node):
     # TODO: revise this to sample with softmax and temperature
