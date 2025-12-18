@@ -9,11 +9,8 @@ ACTION_SPACE = [a for a in range(9)]
 MIN_Q = float('inf')
 MAX_Q = -float('inf')
 
-SEARCH_PATH = [] # tracks nodes traversed during simulation
-ACTION_HISTORY = [] # tracks actions taken during simulation
-
-def whose_turn():
-    if len(ACTION_HISTORY) % 2 == 0:
+def whose_turn(action_history):
+    if len(action_history) % 2 == 0:
         return 0 # player 1's turn
     else:
         return 1 # player 2's turn
@@ -117,10 +114,10 @@ def update_min_max_Q(node_mean_value):
         MIN_Q = node_mean_value
     pass
 
-def expansion(last_node, state, reward, policy_logits, legal_actions):
+def expansion(last_node, state, reward, policy_logits, legal_actions, action_history):
     last_node.state = state
     last_node.reward = reward
-    last_node.current_player = whose_turn()
+    last_node.current_player = whose_turn(action_history)
 
     # mask illegal actions and normalize the policy over legal moves
     policy = {a: math.exp(policy_logits[a]) for a in legal_actions}
@@ -157,25 +154,22 @@ def select_child(node):
     return best_child, best_action
 
 def selection(node):
-    global SEARCH_PATH
-    global ACTION_HISTORY
-    SEARCH_PATH = [node]
-    ACTION_HISTORY = []
+    search_path = [node]
+    action_history = []
 
     while node.expanded():
         node, action = select_child(node)
-        SEARCH_PATH.append(node)
-        ACTION_HISTORY.append(action)
-    return node
+        search_path.append(node)
+        action_history.append(action)
+    return node, search_path, action_history
 
-def backup(value):
-    global SEARCH_PATH
-    L = len(SEARCH_PATH)
+def backup(value, search_path):
+    L = len(search_path)
     for k in range(L-2, -1, -1):
-        current_node = SEARCH_PATH[k]
+        current_node = search_path[k]
         G = 0
         for tau in range(0, L-k):
-            lookup_node = SEARCH_PATH[k+1+tau]
+            lookup_node = search_path[k+1+tau]
             reward = lookup_node.R
             G += GAMMA**k * reward + GAMMA**(k) * value
         current_node.value_sum = current_node.N * current_node.mean_value() + G
@@ -197,14 +191,16 @@ def search(obs):
     root_node = Node(0)
     state = StateFunction(obs)
     reward = 0
+    action_history = []
+
     policy_logits, value = PredictionFunction(state)
-    legal_actions = get_legal_actions(obs, ACTION_HISTORY, env)
-    expansion(root_node, state, reward, policy_logits, legal_actions)
+    legal_actions = get_legal_actions(obs, action_history, env)
+    expansion(root_node, state, reward, policy_logits, legal_actions, action_history)
     for _ in range(MAX_ITERS):
-        last_node = selection(root_node)
-        state, reward = DynamicsFunction(last_node.state, ACTION_HISTORY[-1])
+        last_node, search_path, action_history = selection(root_node)
+        state, reward = DynamicsFunction(last_node.state, action_history[-1])
         policy_logits, value = PredictionFunction(state)
-        legal_actions = get_legal_actions(obs, ACTION_HISTORY, env)
+        legal_actions = get_legal_actions(obs, action_history, env)
         expansion(last_node, state, reward, policy_logits, legal_actions)
-        backup(value)
+        backup(value, search_path)
     return select_action(root_node)
