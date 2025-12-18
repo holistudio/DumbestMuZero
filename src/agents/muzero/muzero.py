@@ -134,7 +134,8 @@ def pUCT(node, sum_visits):
     c1 = 1.25
     c2 = 19652
     Q = node.mean_value()
-    Q = Q - MIN_Q / (MAX_Q - MIN_Q)
+    if MAX_Q > MIN_Q:
+        Q = (Q - MIN_Q) / (MAX_Q - MIN_Q)
     N = node.N
     P = node.P
     N_sum = sum_visits
@@ -142,10 +143,8 @@ def pUCT(node, sum_visits):
 
 
 def select_child(node):
-    sum_visits = 0
-    for a in node.children:
-        child_node = node.children[a]
-        sum_visits += child_node.N
+    # parent node visit count is the sum of its children's visit counts.
+    sum_visits = node.N
 
     best_uct = -float('inf')
     best_child = None
