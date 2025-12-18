@@ -167,35 +167,27 @@ def backup(value, search_path):
     L = len(search_path)
     # initialize with value estimate
     G = value
-    # iterate backwards from the leaf's parent
-    for k in range(L - 2, -1, -1):
+    # iterate backwards from the leaf node to the root
+    for k in range(L - 1, -1, -1):
         current_node = search_path[k]
-        # reward is from the transition *to* the next state in the path.
-        reward = search_path[k+1].R
-        G = reward + GAMMA * G
+        if k < L - 1: # Not the leaf node
+            # reward is from the transition *to* the next state in the path.
+            reward = search_path[k+1].R
+            G = reward + GAMMA * G
         current_node.value_sum += G
         current_node.N += 1
         update_min_max_Q(current_node.mean_value())
     pass
 
-def select_action(node):
-    # TODO: revise this to sample with softmax and temperature
-    max_visits = -1
-    best_action = None
-    for a, child_node in node.children.items():
-        if child_node.N > max_visits:
-            max_visits = child_node.N
-            best_action = a
-    return best_action
-
 def search(obs):
-    action_history = []
     root_node = Node(0)
+    action_history = []
+    search_path = [root_node]
     initial_state = StateFunction(obs)
     policy_logits, value = PredictionFunction(initial_state)
     legal_actions = get_legal_actions(obs, action_history, env)
     expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
-    backup(value, [root_node]) # Backup the value of the root
+    backup(value, search_path) # backup the value of the root
 
     for _ in range(MAX_ITERS):
         last_node, search_path, action_history = selection(root_node)
@@ -209,6 +201,17 @@ def search(obs):
         
         backup(value, search_path)
     return select_action(root_node)
+
+
+def select_action(node):
+    # TODO: revise this to sample with softmax and temperature
+    max_visits = -1
+    best_action = None
+    for a, child_node in node.children.items():
+        if child_node.N > max_visits:
+            max_visits = child_node.N
+            best_action = a
+    return best_action
 
 def step(observation):
     obs = preprocess_obs(observation)
