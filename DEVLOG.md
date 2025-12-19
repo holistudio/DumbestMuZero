@@ -1,5 +1,96 @@
 # DEV LOG
 
+## 2025-12-18
+
+Going to review the code written so far with Gemini. My prompt template is something like this:
+
+```
+{
+  What:
+    - "I am writing my own implementation of MuZero from scratch."
+    - "The implementation is NOT complete. I've done a basic draft of the MuZero Search algorithm"
+    - "Please review the specific function I have highlighted and check for any major inconsistencies with how MuZero works for that specific function"
+    - "Suggest any code changes I should make for the function and explain."
+    
+  Boundaries:
+    - "Only consider the function that I have highlighted and point to."
+    - "Only modify the lines within the function. DO NOT modify lines outside function"
+    - "You may explain verbally (NOT CODE) how a modification within the function relates to other functions outside the highlighted scope."
+    - "Your response should focus on one specific part/phase of MuZero search without explaining the rest of the algorithm in great detail."
+    - "Do not add ReplayBuffer or other data structures that are required for loss function computation and neural network training."
+    - "Only focus on the 'forward pass' or MuZero MCTS for deciding the next move given the latest/current game state."
+    - "Do not modify the PyTorch neural network Functions defined above. I do not care about improving the neural nets."
+    - "Do not worry about references to the environment `env`. I will take care of how the environment performs specific functions in a different class definition."
+    
+  Success:
+    - "I am less interested in implementing a full MuZero algorithm for complicated games, and more interested in learning how to write a very basic form of MuZero for a simple game like tic-tac-toe."
+    - "I am learning how to implement MuZero, so I want a detailed understanding at a function/specific phase level of how the algorithm works and how the code should reflect that."
+}
+```
+
+Use the above prompt for reviewing my `expansion()` function I'm already learning that the expansion should only expand the legal moves.
+- Initially I thought it's not possible to identify legal moves during MuZero search because it's using a hidden state representation...
+- But that alone doesn't prevent one from determining legal moves.
+- At the very start of MCTS we are given the explicit game board and the game tells us the legal moves (`gymnasium` does so with `observation[action_mask]`)
+- But that's not all! MuZero search **still** predicts "explicit" actions to take at each node of the tree.
+- So during simulation / `selection()` we track these action in `ACTION_HISTORY`
+- Using both `ACTION_HISTORY` and combined with the original game board, we can also infer subsequent legal moves.
+- To be clear, this does mean we do still track explicit representations of the future board states BUT those explicit representations are never given to the model.
+
+
+Also, it appears I mis-read Equation 3 in Appendix B describing the bootstrap backup update of node values:
+
+As written in the paper:
+
+$$
+G^k = \sum_{\tau=0}^{l-1-k}{\gamma^\tau r_{k+1+\tau}} + \gamma^{l-k}{v^l}
+$$
+
+A less confusing way of writing it:
+
+$$
+G^k = \gamma^{l-k}{v^l} + \sum_{\tau=0}^{l-1-k}{\gamma r_{k+1+\tau}}  
+$$
+
+To the RL PhDs this is trivial because they probably know the discounted reward formulas from Sutton and Barto off the top of their heads, but for a dumb person like me, I though $\gamma^{l-k}{v^l}$ was *inside* the summation term...as a constant...accruing over and over each node...
+
+Yes, in hindsight this is really dumb but hey lesson learned! My nicer equation version clearly shows that you start by initializing $G$ with the value $v$ computed by the prediction function $f_\theta$ before going into the backup for-loop.
+
+More importantly, I wrote an inner for loop to represent this summation performed at node $k$ but actually, there's no need for an inner for loop. As you traverse the nodes in reverse order, you can use the previously computed discounted reward $G^{k+1}$ in your current computation of $G^{k}$. i.e.:
+
+```
+G = reward + GAMMA * G
+```
+
+In the `search()` I made a major mistake in passing the wrong state to the dynamics function:
+
+```
+last_node, search_path, action_history = selection(root_node)
+state, reward = DynamicsFunction(last_node.state, action_history[-1])
+```
+
+The end of the search returns `last_node` or the leaf node, which is unexpanded and does not have a hidden state defined yet! So `last_node.state` is `None`. From an RL-intuition about MuZero, it also doesn't make sense because the whole point of having dynamics function IS to predict THIS leaf node's hidden state.
+
+So the correct thing to do is to look up the parent node's state and give it to dynamics function. This is easy with the `search_path` list keeping track of that already. 
+
+```
+last_node, search_path, action_history = selection(root_node)
+parent_node = search_path[-2]
+state, reward = DynamicsFunction(parent_node.state, action_history[-1])
+```
+
+Finally, with the way I have things written, the first time I make the root node and expand also requires me to do a backup phase because
+- prediction function has made a value estimate based on the initial state
+- `expansion()` does not "initialize" the node's `value_sum` or visit counts `N`
+- so a quick `backup()` is needed before the main for loop in `search()`
+
+Moreover I forgot to alternate the sign of the discounted reward/value `G` based on whether the node corresponds to current player or not! (same issue with regular UCT)
+
+Now I can move on to writing the training functions, `step()` and `update()`, `ReplayBuffer` class...
+
+Still a ways to go!
+
+
 ## 2025-12-17
 
 One of the struggles with implementing this based on the Appendix B text is that the writing does not describe auxiliary data structures that come in handy to help keep track of things during the tree search. A `TreeNode` and `TreeEdge` class storing states and other statistics alone isn't going to cut it.
