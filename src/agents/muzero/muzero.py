@@ -214,3 +214,44 @@ def select_action(node):
 def step(observation):
     obs = preprocess_obs(observation)
     return search(obs)
+
+"""REPLAY BUFFER"""
+
+# td_steps, n steps into the future for target_value
+# k_unroll_steps, capped k steps in trajectory for training
+
+# trajectories = [] store each game's trajectory
+
+# TRAJECTORY = zip(observations, player_turns, actions, target_policies, immediate_rewards, final_outcomes)
+# observations = []
+# player_turns = []
+# actions = []
+# immediate_rewards = []
+# final_outcomes = []
+
+# target_policies = []
+# target_policy = [prob for a in action_space] action probabilities based on normalized child node visits
+
+# store_trajectory(root_node, search_path, action_history)
+
+# sample_batch(k_unroll_steps, td_steps)
+# target_policy
+# immediate_reward
+# target_value # same as final outcome for board games OR discounted from final_outcome based on td_steps
+
+"""TRAINING"""
+
+# load from batch
+# observations
+# actions
+
+# neural nets predict
+# policy_logits
+# predicted_reward
+# predicted_value
+
+# loss
+# compare with corresponding
+# target_policy, cross_entropy
+# immediate_reward, MSE
+# target_value, MSE
