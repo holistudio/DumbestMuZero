@@ -1,4 +1,5 @@
 import math
+import copy
 
 import torch
 import torch.nn as nn
@@ -10,6 +11,9 @@ MIN_Q = float('inf')
 MAX_Q = -float('inf')
 
 def whose_turn(action_history):
+    # TODO: this needs to be based on the observation from the environment
+    # action histories are not a reliable way to figure out whose turn it is because
+    # the first turn in the action history could be Player 2 not Player 1!
     if len(action_history) % 2 == 0:
         return 0 # player 1's turn
     else:
@@ -217,27 +221,65 @@ def step(observation):
 
 """REPLAY BUFFER"""
 
-# td_steps, n steps into the future for target_value
-# k_unroll_steps, capped k steps in trajectory for training
+class ReplayBuffer(object):
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+        self.trajectories = [] # store each game's trajectory
 
-# trajectories = [] store each game's trajectory
+        # TRAJECTORY = zip(observations, player_turns, actions, immediate_rewards, target_policies, final_outcomes)
+        self.observations = []
+        self.player_turns = []
+        self.actions = []
+        self.target_policies = []
+        self.immediate_rewards = []
+        self.final_outcomes = []
+        pass
 
-# TRAJECTORY = zip(observations, player_turns, actions, target_policies, immediate_rewards, final_outcomes)
-# observations = []
-# player_turns = []
-# actions = []
-# immediate_rewards = []
-# final_outcomes = []
+    def reset_trajectory(self):
+        self.observations = []
+        self.player_turns = []
+        self.actions = []
+        self.target_policies = []
+        self.immediate_rewards = []
+        self.final_outcomes = []
+        pass
 
-# target_policies = []
-# target_policy = [prob for a in action_space] action probabilities based on normalized child node visits
+    def store_trajectory(self):
+        trajectory = zip(self.observations, 
+                         self.player_turns, self.actions, 
+                         self.immediate_rewards, # dynamics function target
+                         self.target_policies, self.final_outcomes) # prediction function targets
+        trajectory = copy.deepcopy(trajectory)
+        self.trajectories.append(trajectory)
 
-# store_trajectory(root_node, search_path, action_history)
+        self.reset_trajectory()
+        pass
 
-# sample_batch(k_unroll_steps, td_steps)
-# target_policy
-# immediate_reward
-# target_value # same as final outcome for board games OR discounted from final_outcome based on td_steps
+    def store_trajectory_step(obs, root_node, action, immediate_reward, final_outcome):
+        # TODO: maybe better done by the agent within MuZeroAgent class
+        # player turn from root_node
+        # action direct from what was chosen by select_action (different from child visits if sampled)
+
+        # somehow get the immediate_reward from environment
+        
+        # once final_outcome is nonzero, label the entire trajectory with the final outcome +/- based on player_turn
+        # maybe with a discount factor???
+        pass
+
+    def sample_batch(self, k_unroll_steps, td_steps):
+        # td_steps, n steps into the future for target_value
+        # k_unroll_steps, capped k steps in trajectory for training
+        
+        # inputs
+        # observations (but only first observation is used)
+        # player_turns
+        # actions
+
+        # targets
+        # immediate_reward
+        # target_policy
+        # target_value # same as final outcome for board games OR discounted from final_outcome based on td_steps
+        return inputs, targets
 
 """TRAINING"""
 
