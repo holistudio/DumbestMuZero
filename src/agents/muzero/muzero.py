@@ -10,14 +10,18 @@ ACTION_SPACE = [a for a in range(9)]
 MIN_Q = float('inf')
 MAX_Q = -float('inf')
 
-def whose_turn(action_history):
-    # TODO: this needs to be based on the observation from the environment
-    # action histories are not a reliable way to figure out whose turn it is because
-    # the first turn in the action history could be Player 2 not Player 1!
-    if len(action_history) % 2 == 0:
-        return 0 # player 1's turn
-    else:
-        return 1 # player 2's turn
+def whose_turn(env, action_history):
+    # based on the environment and action history in simulation
+    if env.agent_selection == 'player_1':
+        if len(action_history) % 2 == 0:
+            return 0 # player 1's turn
+        else:
+            return 1 # player 2's turn
+    if env.agent_selection == 'player_2':
+        if len(action_history) % 2 == 0:
+            return 1 # player 2's turn
+        else:
+            return 0 # player 1's turn
 
 def preprocess_obs(self, observation):
     # pre-process observation dictionary into tensor
