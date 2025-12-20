@@ -1,5 +1,14 @@
 # DEV LOG
 
+
+## 2025-12-19
+
+I did a quick draft of commented pseudo-code describing the ReplayBuffer and training/update neural net weights
+
+The main thing that took me a while to understand is the `target_policy` (i.e., number of action node visits during MCTS simulation, normalized so it's like action probabilities), which is compared with the prediction function's `policy` output (i.e., logit scores for each action, which can be converted into probabilities), via cross entropy loss.
+
+Now I'll try to turn pseudo-code into some actual code.
+
 ## 2025-12-18
 
 Going to review the code written so far with Gemini. My prompt template is something like this:
