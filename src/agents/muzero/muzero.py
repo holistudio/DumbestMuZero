@@ -228,7 +228,7 @@ def step(observation):
 class ReplayBuffer(object):
     def __init__(self, batch_size):
         self.batch_size = batch_size
-        self.trajectories = [] # store each game's trajectory
+        self.buffer = [] # store each game's trajectory
 
         # TRAJECTORY = zip(observations, player_turns, actions, immediate_rewards, target_policies, final_outcomes)
         self.observations = []
@@ -239,6 +239,12 @@ class ReplayBuffer(object):
         self.final_outcomes = []
         pass
 
+    def step_count(self):
+        count = 0
+        for trajectory in self.buffer:
+            count += len(trajectory)
+        return count
+    
     def reset_trajectory(self):
         self.observations = []
         self.player_turns = []
@@ -254,7 +260,7 @@ class ReplayBuffer(object):
                          self.immediate_rewards, # dynamics function target
                          self.target_policies, self.final_outcomes) # prediction function targets
         trajectory = copy.deepcopy(trajectory)
-        self.trajectories.append(trajectory)
+        self.buffer.append(trajectory)
 
         self.reset_trajectory()
         pass
@@ -271,33 +277,73 @@ class ReplayBuffer(object):
         pass
 
     def sample_batch(self, k_unroll_steps, td_steps):
-        # td_steps, n steps into the future for target_value
-        # k_unroll_steps, capped k steps in trajectory for training
-        
-        # inputs
-        # observations (but only first observation is used)
-        # player_turns
-        # actions
+        batch = []
 
-        # targets
-        # immediate_reward
-        # target_policy
-        # target_value # same as final outcome for board games OR discounted from final_outcome based on td_steps
-        return inputs, targets
+        for b in self.batch_size:
+            # td_steps, n steps into the future for target_value
+            # k_unroll_steps, capped k steps in trajectory for training
+            
+            # inputs
+            # observations (but only first observation is used)
+            # player_turns
+            # actions
+
+            # targets
+            # immediate_reward
+            # target_policy
+            # target_value # same as final outcome for board games OR discounted from final_outcome based on td_steps
+            sequence = zip(inputs, targets)
+            batch.append(sequence)
+        return batch
 
 """TRAINING"""
 
-# load from batch
-# observations
-# actions
+def update():
+    if replay_buffer.count() > buffer_size:
+        model.train()
+        # load from batch
+        batch = replay_buffer.sample_batch()
+        for sequence in batch:
+            inputs, targets = sequence
 
-# neural nets predict
-# policy_logits
-# predicted_reward
-# predicted_value
+            obs, actions = inputs
+            
+            # neural nets predict
+            # predicted_reward
+            # policy_logits
+            # predicted_value
+            state = StateFunction(obs[0])
+            predicted_reward = 0
+            policy_logits, value = PredictionFunction(state)
+            action_history = []
+            predictions = [(policy_logits, predicted_reward, value)]
+            for a in actions:
+                state, predicted_reward  = DynamicsFunction(state, a)
+                policy_logits, value = PredictionFunction(state)
+                legal_actions = get_legal_actions(obs, action_history, env)
+                policy_logits = [policy_logits[i] if i in legal_actions else 0 for i in action_space]
+                predictions.append((policy_logits, predicted_reward, value))
+                action_history.append(a)
+            
+            # loss
+            # TODO: add gradient scale
+            l = 0
+            for i, pred in enumerate(predictions):
+                policy_logits, predicted_reward, value = pred
+                u, target_policy, target_value = targets[i]
 
-# loss
-# compare with corresponding
-# target_policy, cross_entropy
-# immediate_reward, MSE
-# target_value, MSE
+                
+                # compare with corresponding
+                # immediate_reward, MSE
+                # target_policy, cross_entropy
+                # target_value, MSE
+                l += mse(predicted_reward, u) + cross_entropy(policy_logits, target_policy) + mse(value, target_value)
+        loss = l + regularization(weights)
+
+        optimizer.zero_grad()
+
+        loss.backward()
+
+        optimizer.step()
+
+        model.eval()
