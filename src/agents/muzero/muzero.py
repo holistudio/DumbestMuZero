@@ -148,11 +148,12 @@ class ReplayBuffer(object):
 
 
 class MuZeroAgent(object):
-    def __init__(self, env, config):
-        self.env = env
-        self.observation_space = self.flatten(env.observation_space)
+    def __init__(self, environment, config):
+        self.env = environment
+        self.observation_space = self.flatten(environment.observation_space('player_1'))
         self.obs_size = self.observation_space.shape
-        self.action_space = env.action_space
+        self.action_space = environment.action_space('player_1')
+        self.action_size = self.action_space.n
 
         self.replay_buffer = ReplayBuffer(config['batch_size'])
         self.buffer_size = config['buffer_size']
@@ -166,7 +167,7 @@ class MuZeroAgent(object):
                                                   config['hidden_size'])
         
         self.prediction_function = PredictionFunction(config['state_size'],
-                                                      self.action_space.shape[0],
+                                                      self.action_size,
                                                       config['hidden_size'])
         
         all_function_params = (list(self.state_function.parameters()) +
@@ -187,8 +188,9 @@ class MuZeroAgent(object):
 
     """ENIVORNMENT HELPER FUNCTIONS"""
     def flatten(self, observation_space):
-        # TODO: return observation space as a 1-D vector
-        return (9,)
+        H, W, C = observation_space['observation'].shape
+        # return observation space as a 1-D vector
+        return torch.zeros(H*W)
 
     def preprocess_obs(self, observation):
         # pre-process observation dictionary into tensor
