@@ -384,6 +384,8 @@ class MuZeroAgent(object):
                     # target_policy, cross_entropy
                     # target_value, MSE
                     l += F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
+            
+            # TODO: L2 norm for regularization
             loss = l + regularization(weights)
 
             self.optimizer.zero_grad()
