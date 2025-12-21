@@ -5,29 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-"""ENIVORNMENT HELPER FUNCTIONS"""
-
-
-
-def flatten(observation_space):
-    # TODO: return observation space as a 1-D vector
-    return (9,)
-
-def preprocess_obs(observation):
-    # pre-process observation dictionary into tensor
-    obs = torch.zeros((3,3), dtype=torch.float32)
-    current_player_plane = torch.tensor(observation["observation"][:, :, 0])
-    opponent_plane = torch.tensor(observation["observation"][:, :, 1]) * 2
-    obs = obs + current_player_plane + opponent_plane
-    obs = obs.reshape((9,1)).squeeze()
-    return obs
-
-def get_legal_actions(observation, history, env):
-    if len(history) > 0:
-        for a in history:
-            observation = env.transition(observation, a)
-    return env.available_actions(observation)
-
 class StateFunction(nn.Module):
     def __init__(self, input_size, output_size, hidden_size):
         super().__init__()
@@ -169,7 +146,7 @@ class ReplayBuffer(object):
 class MuZeroAgent(object):
     def __init__(self, env, config):
         self.env = env
-        self.observation_space = flatten(env.observation_space)
+        self.observation_space = self.flatten(env.observation_space)
         self.obs_size = self.observation_space.shape
         self.action_space = env.action_space
 
@@ -199,6 +176,41 @@ class MuZeroAgent(object):
         self.gamma = config['gamma']
         pass
 
+    """ENIVORNMENT HELPER FUNCTIONS"""
+    def flatten(self, observation_space):
+        # TODO: return observation space as a 1-D vector
+        return (9,)
+
+    def preprocess_obs(self, observation):
+        # pre-process observation dictionary into tensor
+        obs = torch.zeros((3,3), dtype=torch.float32)
+        current_player_plane = torch.tensor(observation["observation"][:, :, 0])
+        opponent_plane = torch.tensor(observation["observation"][:, :, 1]) * 2
+        obs = obs + current_player_plane + opponent_plane
+        obs = obs.reshape((9,1)).squeeze()
+        return obs
+
+    def get_legal_actions(self, observation, history):
+        if len(history) > 0:
+            for a in history:
+                observation = self.env.transition(observation, a)
+        return self.env.available_actions(observation)
+
+
+    def whose_turn(self, action_history):
+        # based on the environment and action history in simulation
+        # NOT the current player index in the game being played
+        if self.env.agent_selection == 'player_1':
+            if len(action_history) % 2 == 0:
+                return 0 # player 1's turn
+            else:
+                return 1 # player 2's turn
+        if self.env.agent_selection == 'player_2':
+            if len(action_history) % 2 == 0:
+                return 1 # player 2's turn
+            else:
+                return 0 # player 1's turn
+
     def update_min_max_Q(self, node_mean_value):
         # keep track of min Q and max Q over entire tree
         if node_mean_value > self.max_Q:
@@ -207,20 +219,6 @@ class MuZeroAgent(object):
             self.min_Q = node_mean_value
         pass
 
-    def whose_turn(self, env, action_history):
-        # based on the environment and action history in simulation
-        # NOT the current player index in the game being played
-        if env.agent_selection == 'player_1':
-            if len(action_history) % 2 == 0:
-                return 0 # player 1's turn
-            else:
-                return 1 # player 2's turn
-        if env.agent_selection == 'player_2':
-            if len(action_history) % 2 == 0:
-                return 1 # player 2's turn
-            else:
-                return 0 # player 1's turn
-        
     def expansion(self, last_node, state, reward, policy_logits, legal_actions, action_history):
         last_node.state = state
         last_node.reward = reward
@@ -301,7 +299,7 @@ class MuZeroAgent(object):
         search_path = [root_node]
         initial_state = self.state_function(obs)
         policy_logits, value = self.prediction_function(initial_state)
-        legal_actions = get_legal_actions(obs, action_history, self.env)
+        legal_actions = self.get_legal_actions(obs, action_history)
         self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
         self.backup(value, search_path) # backup the value of the root
 
@@ -312,7 +310,7 @@ class MuZeroAgent(object):
             state, reward = self.dynamics_function(parent_node.state, action_history[-1])
             policy_logits, value = self.prediction_function(state)
             
-            legal_actions = get_legal_actions(obs, action_history, self.env)
+            legal_actions = self.get_legal_actions(obs, action_history)
             self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
             
             self.backup(value, search_path)
@@ -342,7 +340,7 @@ class MuZeroAgent(object):
         pass
 
     def step(self, observation):
-        obs = preprocess_obs(observation)
+        obs = self.preprocess_obs(observation)
         action = self.search(obs)
         return action
 
@@ -388,10 +386,10 @@ class MuZeroAgent(object):
                     l += F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
             loss = l + regularization(weights)
 
-            optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
             loss.backward()
 
-            optimizer.step()
+            self.optimizer.step()
 
             model.eval()
