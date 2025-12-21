@@ -121,23 +121,27 @@ class ReplayBuffer(object):
         pass
 
     def sample_batch(self, k_unroll_steps, td_steps):
-        # TODO: return batches of trajectories
+        # return batches of trajectories
         # each of length k_unroll_steps
         batch = []
 
+        num_eps = len(self.buffer)
         for b in self.batch_size:
-            # td_steps, n steps into the future for target_value
+            random_ep = self.buffer[torch.randint(0,num_eps)]
+            ix = torch.randint(0,len(random_ep) - k_unroll_steps)
+            observations, player_turns, actions, immediate_rewards, target_policies, final_outcomes = random_ep
+            inputs = []
+            targets = []
             # k_unroll_steps, capped k steps in trajectory for training
-            
-            # inputs
-            # observations (but only first observation is used)
-            # player_turns
-            # actions
+            # td_steps, n steps into the future for target_value
+            for k in range(ix,ix+k_unroll_steps):
+                # inputs: observations (but only first observation is used)
+                # player_turns, actions
+                inputs.append((observations[ix], player_turns[ix], actions[ix]))
 
-            # targets
-            # immediate_reward
-            # target_policy
-            # target_value # same as final outcome for board games OR discounted from final_outcome based on td_steps
+                # targets: immediate_reward, target_policy, target_value 
+                targets.append((immediate_rewards[ix], target_policies[ix], final_outcomes[ix]))
+                # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
             sequence = zip(inputs, targets)
             batch.append(sequence)
         return batch
@@ -352,7 +356,7 @@ class MuZeroAgent(object):
             for sequence in batch:
                 inputs, targets = sequence
 
-                obs, actions = inputs
+                obs, player_turns, actions = inputs
                 
                 # neural nets predict
                 # predicted_reward
