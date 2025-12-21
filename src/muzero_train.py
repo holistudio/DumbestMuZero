@@ -1,11 +1,22 @@
 from envs.tictactoe import tictactoe
-from agents.mcts.mcts import UCTAgent
+from agents.muzero.muzero import MuZeroAgent
 
 env = tictactoe.env(render_mode="human")
 
-agent1 = UCTAgent(environment=env)
+config = {
+    'batch_size': 8,
+    'buffer_size': 1000,
+    'state_size': 16,
+    'hidden_size': 64,
+    'lr': 3e-4,
+    'weight_decay': 1e-4,
+    'max_iters': 10_000,
+    'gamma': 0.997
+}
 
-agent_list = [agent1 , agent1]
+agent1 = MuZeroAgent(environment=env, config=config)
+
+agent_list = [agent1 , 'random']
 
 
 for _ in range(5):
