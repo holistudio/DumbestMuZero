@@ -169,9 +169,11 @@ class MuZeroAgent(object):
                                                       self.action_space.shape[0],
                                                       config['hidden_size'])
         
-        # TODO: somehow "wrap" all three neural nets into one model for easier turning on/off model.train()
-        self.model = todo()
-        # TODO: three neural nets' weights need to be given to the optimizer
+        all_function_params = (list(self.state_function.parameters()) +
+                               list(self.dynamics_function.parameters()) +
+                               list(self.prediction_function.parameters()))
+        
+        # three neural nets' weights given to the optimizer
         self.optimizer = torch.optim.AdamW(all_function_params)
 
         self.min_Q = float('inf')
