@@ -316,7 +316,7 @@ class MuZeroAgent(object):
             self.backup(value, search_path)
         return self.select_action(root_node)
 
-    def store_trajectory_step(self, obs, player_turn, action, immediate_reward, final_outcome):
+    def experience(self, obs, player_turn, action, immediate_reward, final_outcome):
         # TODO: call this within environment training loop after env.step(action)
 
         # observation vector
@@ -335,7 +335,7 @@ class MuZeroAgent(object):
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
             # TODO: +/- based on player_turn
             # TODO: maybe with a discount factor???
-            self.replay_buffer.final_outcomes = [final_outcome if i == 'player_1' else -final_outcome for i in self.replay_buffer.player_turns]
+            self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]
             self.replay_buffer.store_trajectory()
         pass
 
