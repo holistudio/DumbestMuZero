@@ -29,6 +29,7 @@
 
  - [X] Read the MuZero paper: https://arxiv.org/abs/1911.08265
  - [ ] Watch talk: https://www.youtube.com/watch?v=L0A86LmH7Yw
+ - [ ] Watch paper review: 
  - [x] Write MuZero's MCTS / "forward pass" from scratch ~~without looking at pseudocode~~ peeking at pseudocode.
    - [x] figure out tree structure for exploring actions and tracking function outputs
    - [x] loop needs to use something akin to tree policy and default policy
@@ -37,26 +38,32 @@
    - [x] ~~sample available and unexplored actions only~~ all possible actions in action space are added during the expansion phase of MuZero search
    - [x] but what happens when there are no more unexplored actions
    - [x] pre-process observation dictionary into tensor
-- [ ] Review forward pass functions with Gemini step by step
+- [x] Review forward pass functions with Gemini step by step
 
 - [ ] Store => ReplayBuffer => Loss => Backprop
-   - [ ] push action and value to ReplayBuffer
-   - [ ] get these to be tuples of K records from tree search + replay buffer?
+   - [ ] ~~get these to be tuples of K records from tree search + replay buffer?~~
+   - [x] push steps to ReplayBuffer via `agent.experience()`
+   - [x] check if ReplayBuffer is full
+   - [x] loop through ReplayBuffer
+   - [ ] ReplayBuffer sample_batch()
+   - [ ] Final outcome z maybe with a discount factor???
+   - [ ] Final outcome +/- based on current player and node player_turn
+   - [ ] Three neural nets as one model
+   - [x] loss function
+   - [x] reward loss term
+   - [x] value loss term
+   - [x] policy loss term
+   - [ ] weight decay/regularization term
+   - [ ] add gradient scale for loss 
    - [ ] what params go here? neural nets'?
    - [ ] probably need L2 norm for regularization
-   - [ ] store recent returns from environment
-   - [ ] check if ReplayBuffer is full
-   - [ ] loop through ReplayBuffer
-   - [ ] loss function
-   - [ ] reward loss term
-   - [ ] value loss term
-   - [ ] policy loss term
-   - [ ] weight decay/regularization term
    - [ ] get loss.backward() to work
 
 - [ ] Fit into `gymnasium` agent-game loop pattern
+   - [ ] `flatten()` return observation space as a 1-D vector
    - [ ] `agent.step(obs)`
    - [ ] `agent.update()`
+   - [ ] `agent.experience()` store recent returns from environment
 - [ ] for tic tac toe the search depth should be tracked to within 9 total steps
 
 - [ ] Get a full code review
