@@ -1,11 +1,16 @@
 # DEV LOG
 
+# 2025-12-20
+
+OK, time to make this more real with an actual `MuZeroAgent` class. I've been shying away from doing this until now because I really wanted to focus on the individual functions rather than worry about which variables have to be attributes of which class. But now I do want to start thinking about this more.
+
+I'm still working out how the training / weight updates actually happen since I've come to realize I have not really don't three neural networks being trained as a single "model" with weight updates coming from multiple loss functionals summed into one. Will clarify this tomorrow and hopefull get something finally running!
 
 ## 2025-12-19
 
 I did a quick draft of commented pseudo-code describing the ReplayBuffer and training/update neural net weights
 
-The main thing that took me a while to understand is the `target_policy` (i.e., number of action node visits during MCTS simulation, normalized so it's like action probabilities), which is compared with the prediction function's `policy` output (i.e., logit scores for each action, which can be converted into probabilities), via cross entropy loss.
+The main thing that took me a while to understand is the `target_policy` (i.e., number of action node visits during MCTS simulation, normalized so it's like action probabilities), which is compared with the prediction function's `policy` output (i.e., logit scores for each action, ~~which can be converted into probabilities~~), via cross entropy loss.
 
 Now I'll try to turn pseudo-code into some actual code.
 
