@@ -162,7 +162,7 @@ class MuZeroAgent(object):
                                             config['state_size'],
                                             config['hidden_size'])
         
-        self.dynamics_function = DynamicsFunction(self.obs_size[0]+1,
+        self.dynamics_function = DynamicsFunction(config['state_size']+1,
                                                   config['state_size'],
                                                   config['hidden_size'])
         
@@ -183,6 +183,10 @@ class MuZeroAgent(object):
         self.max_Q = -float('inf')
         self.max_iters = config['max_iters']
         self.gamma = config['gamma']
+
+        self.state_function.eval()
+        self.dynamics_function.eval()
+        self.prediction_function.eval()
         pass
 
 
@@ -201,11 +205,11 @@ class MuZeroAgent(object):
         obs = obs.reshape((9,1)).squeeze()
         return obs
 
-    def get_legal_actions(self, observation, history):
+    def get_legal_actions(self, temp_board, history):
         if len(history) > 0:
             for a in history:
-                observation = self.env.transition(observation, a)
-        return self.env.available_actions(observation)
+                temp_board[a] = -1
+        return list(torch.where(temp_board == 0)[0].tolist())
 
 
     def whose_turn(self, action_history):
@@ -233,7 +237,7 @@ class MuZeroAgent(object):
     def expansion(self, last_node, state, reward, policy_logits, legal_actions, action_history):
         last_node.state = state
         last_node.reward = reward
-        last_node.current_player = self.whose_turn(self.env, action_history)
+        last_node.current_player = self.whose_turn(action_history)
 
         # mask illegal actions and normalize the policy over legal moves
         policy = {a: math.exp(policy_logits[a]) for a in legal_actions}
@@ -305,26 +309,28 @@ class MuZeroAgent(object):
         return best_action
 
     def search(self, obs):
-        root_node = Node(0)
-        action_history = []
-        search_path = [root_node]
-        initial_state = self.state_function(obs)
-        policy_logits, value = self.prediction_function(initial_state)
-        legal_actions = self.get_legal_actions(obs, action_history)
-        self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
-        self.backup(value, search_path) # backup the value of the root
-
-        for _ in range(self.max_iters):
-            last_node, search_path, action_history = self.selection(root_node)
-
-            parent_node = search_path[-2]
-            state, reward = self.dynamics_function(parent_node.state, action_history[-1])
-            policy_logits, value = self.prediction_function(state)
-            
+        with torch.no_grad():
+            root_node = Node(0)
+            action_history = []
+            search_path = [root_node]
+            initial_state = self.state_function(obs)
+            policy_logits, value = self.prediction_function(initial_state)
             legal_actions = self.get_legal_actions(obs, action_history)
-            self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
-            
-            self.backup(value, search_path)
+            self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
+            self.backup(value, search_path) # backup the value of the root
+
+            for _ in range(self.max_iters):
+                last_node, search_path, action_history = self.selection(root_node)
+
+                parent_node = search_path[-2]
+                latest_action = torch.tensor(action_history[-1],dtype=torch.float32).unsqueeze(0)
+                state, reward = self.dynamics_function(parent_node.state, latest_action)
+                policy_logits, value = self.prediction_function(state)
+                
+                legal_actions = self.get_legal_actions(obs, action_history)
+                self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
+                
+                self.backup(value, search_path)
         return self.select_action(root_node)
 
     def experience(self, obs, player_turn, action, immediate_reward, final_outcome):
@@ -382,7 +388,8 @@ class MuZeroAgent(object):
 
                 action_history = []
                 for a in actions:
-                    state, predicted_reward  = self.dynamics_function(state, a)
+                    latest_action = torch.tensor(a,dtype=torch.float32).unsqueeze(0)
+                    state, predicted_reward  = self.dynamics_function(state, latest_action)
                     policy_logits, value = self.prediction_function(state)
 
                     legal_actions = self.get_legal_actions(obs, action_history, self.env)
