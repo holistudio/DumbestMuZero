@@ -174,13 +174,16 @@ class MuZeroAgent(object):
                                list(self.prediction_function.parameters()))
         
         # three neural nets' weights given to the optimizer
-        self.optimizer = torch.optim.AdamW(all_function_params)
+        self.optimizer = torch.optim.AdamW(params=all_function_params,
+                                           lr=config['lr'],
+                                           weight_decay=config['weight_decay'])
 
         self.min_Q = float('inf')
         self.max_Q = -float('inf')
         self.max_iters = config['max_iters']
         self.gamma = config['gamma']
         pass
+
 
     """ENIVORNMENT HELPER FUNCTIONS"""
     def flatten(self, observation_space):
@@ -349,10 +352,18 @@ class MuZeroAgent(object):
         obs = self.preprocess_obs(observation)
         action = self.search(obs)
         return action
+    
+    def scale_gradient(self, tensor, scale):
+        return tensor * scale + tensor.detach() * (1.0 - scale)
 
     def update(self):
         if self.replay_buffer.step_count() > self.buffer_size:
-            model.train()
+            self.state_function.train()
+            self.dynamics_function.train()
+            self.prediction_function.train()
+
+            loss = 0
+            
             # load from batch
             batch = self.replay_buffer.sample_batch()
             for sequence in batch:
@@ -360,39 +371,36 @@ class MuZeroAgent(object):
 
                 obs, player_turns, actions = inputs
                 
-                # neural nets predict
-                # predicted_reward
-                # policy_logits
-                # predicted_value
+                # neural nets predict: predicted_reward, policy_logits, predicted_value
                 state = self.state_function(obs[0])
                 predicted_reward = 0
                 policy_logits, value = self.prediction_function(state)
-                action_history = []
+                
                 predictions = [(policy_logits, predicted_reward, value)]
+
+                action_history = []
                 for a in actions:
                     state, predicted_reward  = self.dynamics_function(state, a)
                     policy_logits, value = self.prediction_function(state)
+
                     legal_actions = self.get_legal_actions(obs, action_history, self.env)
                     policy_logits = [policy_logits[i] if i in legal_actions else 0 for i in self.action_space]
+                    
+                    state = self.scale_gradient(state, 0.5)
+
                     predictions.append((policy_logits, predicted_reward, value))
                     action_history.append(a)
                 
                 # loss
-                # TODO: add gradient scale
-                l = 0
                 for i, pred in enumerate(predictions):
                     policy_logits, predicted_reward, value = pred
                     u, target_policy, target_value = targets[i]
 
-                    
                     # compare with corresponding
                     # immediate_reward, MSE
                     # target_policy, cross_entropy
                     # target_value, MSE
-                    l += F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
-            
-            # TODO: L2 norm for regularization
-            loss = l + regularization(weights)
+                    loss += F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
 
             self.optimizer.zero_grad()
 
@@ -400,4 +408,6 @@ class MuZeroAgent(object):
 
             self.optimizer.step()
 
-            model.eval()
+            self.state_function.eval()
+            self.dynamics_function.eval()
+            self.prediction_function.eval()
