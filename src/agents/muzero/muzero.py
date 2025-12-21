@@ -370,7 +370,7 @@ class MuZeroAgent(object):
                 for a in actions:
                     state, predicted_reward  = self.dynamics_function(state, a)
                     policy_logits, value = self.prediction_function(state)
-                    legal_actions = get_legal_actions(obs, action_history, self.env)
+                    legal_actions = self.get_legal_actions(obs, action_history, self.env)
                     policy_logits = [policy_logits[i] if i in legal_actions else 0 for i in self.action_space]
                     predictions.append((policy_logits, predicted_reward, value))
                     action_history.append(a)
