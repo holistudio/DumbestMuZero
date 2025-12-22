@@ -1,5 +1,6 @@
 import math
 import copy
+import random
 
 import torch
 import torch.nn as nn
@@ -84,6 +85,7 @@ class ReplayBuffer(object):
     def __init__(self, batch_size):
         self.batch_size = batch_size
         self.buffer = [] # store each game's trajectory
+        self.count = 0
 
         # TRAJECTORY = zip(observations, player_turns, actions, immediate_rewards, target_policies, final_outcomes)
         self.observations = []
@@ -93,12 +95,6 @@ class ReplayBuffer(object):
         self.immediate_rewards = []
         self.final_outcomes = []
         pass
-
-    def step_count(self):
-        count = 0
-        for trajectory in self.buffer:
-            count += len(trajectory)
-        return count
     
     def reset_trajectory(self):
         self.observations = []
@@ -109,40 +105,62 @@ class ReplayBuffer(object):
         self.final_outcomes = []
         pass
 
+    def store_step(self, obs, player_turn, action, target_action_probs, immediate_reward):
+        # observation vector
+        self.observations.append(obs)
+
+        # player turn
+        self.player_turns.append(player_turn)
+
+        # action direct from what was chosen by select_action (different from child visits if sampled)
+        self.actions.append(action)
+
+        print('store_step()')
+        print(target_action_probs)
+        print()
+        self.target_policies.append(target_action_probs)
+
+        # somehow get the immediate_reward from environment
+        self.immediate_rewards.append(immediate_reward)
+        self.count += 1
+        pass
+
     def store_trajectory(self):
-        trajectory = zip(self.observations, 
-                         self.player_turns, self.actions, 
-                         self.immediate_rewards, # dynamics function target
-                         self.target_policies, self.final_outcomes) # prediction function targets
+        trajectory = dict(obs=self.observations, 
+                         turns=self.player_turns, actions=self.actions, 
+                         rewards=self.immediate_rewards, # dynamics function target
+                         target_policies=self.target_policies, final_outcomes=self.final_outcomes) # prediction function targets
+        
         trajectory = copy.deepcopy(trajectory)
         self.buffer.append(trajectory)
 
         self.reset_trajectory()
         pass
 
-    def sample_batch(self, k_unroll_steps, td_steps):
+    def sample_batch(self, k_unroll_steps):
         # return batches of trajectories
         # each of length k_unroll_steps
         batch = []
 
         num_eps = len(self.buffer)
-        for b in self.batch_size:
-            random_ep = self.buffer[torch.randint(0,num_eps)]
-            ix = torch.randint(0,len(random_ep) - k_unroll_steps)
-            observations, player_turns, actions, immediate_rewards, target_policies, final_outcomes = random_ep
-            inputs = []
-            targets = []
+        for b in range(self.batch_size):
+            random_ep = self.buffer[random.randint(0, num_eps-1)]
+            observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
+            immediate_rewards, target_policies, final_outcomes = random_ep['rewards'], random_ep['target_policies'], random_ep['final_outcomes']
+            
             # k_unroll_steps, capped k steps in trajectory for training
-            # td_steps, n steps into the future for target_value
-            for k in range(ix,ix+k_unroll_steps):
-                # inputs: observations (but only first observation is used)
-                # player_turns, actions
-                inputs.append((observations[ix], player_turns[ix], actions[ix]))
+            ix = random.randint(0, len(random_ep) - k_unroll_steps -1)
+            inputs = (observations[ix:ix+k_unroll_steps], player_turns[ix:ix+k_unroll_steps], actions[ix:ix+k_unroll_steps])
 
-                # targets: immediate_reward, target_policy, target_value 
-                targets.append((immediate_rewards[ix], target_policies[ix], final_outcomes[ix]))
-                # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
-            sequence = zip(inputs, targets)
+            # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
+            # td_steps, n steps into the future for target_value
+            print("sample_batch()")
+            print(target_policies[ix:ix+k_unroll_steps])
+            print()
+            targets = (torch.tensor(immediate_rewards[ix:ix+k_unroll_steps], dtype=torch.float32), 
+                       target_policies[ix:ix+k_unroll_steps], 
+                       torch.tensor(final_outcomes[ix:ix+k_unroll_steps], dtype=torch.float32))
+            sequence = (inputs, targets)
             batch.append(sequence)
         return batch
 
@@ -154,6 +172,7 @@ class MuZeroAgent(object):
         self.obs_size = self.observation_space.shape
         self.action_space = environment.action_space('player_1')
         self.action_size = self.action_space.n
+        self.action_probs = torch.zeros(self.action_size)
 
         self.replay_buffer = ReplayBuffer(config['batch_size'])
         self.buffer_size = config['buffer_size']
@@ -183,6 +202,7 @@ class MuZeroAgent(object):
         self.max_Q = -float('inf')
         self.max_iters = config['max_iters']
         self.gamma = config['gamma']
+        self.k_unroll_steps = config['k_unroll_steps']
 
         self.state_function.eval()
         self.dynamics_function.eval()
@@ -209,7 +229,7 @@ class MuZeroAgent(object):
         if len(history) > 0:
             for a in history:
                 temp_board[a] = -1
-        return list(torch.where(temp_board == 0)[0].tolist())
+        return torch.where(temp_board == 0)[0].tolist()
 
 
     def whose_turn(self, action_history):
@@ -300,12 +320,16 @@ class MuZeroAgent(object):
 
     def select_action(self, node):
         # TODO: revise this to sample with softmax and temperature
+        sum_visits = node.N
+        self.action_probs = torch.zeros(self.action_size)
         max_visits = -1
         best_action = None
         for a, child_node in node.children.items():
+            self.action_probs[a] = child_node.N / sum_visits
             if child_node.N > max_visits:
                 max_visits = child_node.N
                 best_action = a
+        print(f"Action Probabilities: {self.action_probs.tolist()}")
         return best_action
 
     def search(self, obs):
@@ -323,7 +347,7 @@ class MuZeroAgent(object):
                 last_node, search_path, action_history = self.selection(root_node)
 
                 parent_node = search_path[-2]
-                latest_action = torch.tensor(action_history[-1],dtype=torch.float32).unsqueeze(0)
+                latest_action = torch.tensor(action_history[-1], dtype=torch.float32).unsqueeze(0)
                 state, reward = self.dynamics_function(parent_node.state, latest_action)
                 policy_logits, value = self.prediction_function(state)
                 
@@ -333,22 +357,11 @@ class MuZeroAgent(object):
                 self.backup(value, search_path)
         return self.select_action(root_node)
 
-    def experience(self, obs, player_turn, action, immediate_reward, final_outcome):
-        # TODO: call this within environment training loop after env.step(action)
-
-        # observation vector
-        self.replay_buffer.observations.append(obs)
-
-        # player turn
-        self.replay_buffer.player_turns.append(player_turn)
-
-        # action direct from what was chosen by select_action (different from child visits if sampled)
-        self.replay_buffer.actions.append(action)
-
-        # somehow get the immediate_reward from environment
-        self.replay_buffer.immediate_rewards.append(immediate_reward)
-        
-        if final_outcome != 0:
+    def experience(self, observation, player_turn, action, immediate_reward, final_outcome, terminal):
+        if not terminal:
+            obs = self.preprocess_obs(observation)
+            self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, immediate_reward)
+        else:
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
             # TODO: +/- based on player_turn
             # TODO: maybe with a discount factor???
@@ -365,7 +378,7 @@ class MuZeroAgent(object):
         return tensor * scale + tensor.detach() * (1.0 - scale)
 
     def update(self):
-        if self.replay_buffer.step_count() > self.buffer_size:
+        if self.replay_buffer.count > self.buffer_size:
             self.state_function.train()
             self.dynamics_function.train()
             self.prediction_function.train()
@@ -373,7 +386,7 @@ class MuZeroAgent(object):
             loss = 0
             
             # load from batch
-            batch = self.replay_buffer.sample_batch()
+            batch = self.replay_buffer.sample_batch(self.k_unroll_steps)
             for sequence in batch:
                 inputs, targets = sequence
 
@@ -381,35 +394,46 @@ class MuZeroAgent(object):
                 
                 # neural nets predict: predicted_reward, policy_logits, predicted_value
                 state = self.state_function(obs[0])
-                predicted_reward = 0
+                predicted_reward = torch.tensor(0.0, dtype=torch.float32).unsqueeze(0)
                 policy_logits, value = self.prediction_function(state)
                 
                 predictions = [(policy_logits, predicted_reward, value)]
 
                 action_history = []
                 for a in actions:
-                    latest_action = torch.tensor(a,dtype=torch.float32).unsqueeze(0)
+                    latest_action = torch.tensor(a, dtype=torch.float32).unsqueeze(0)
                     state, predicted_reward  = self.dynamics_function(state, latest_action)
                     policy_logits, value = self.prediction_function(state)
 
-                    legal_actions = self.get_legal_actions(obs, action_history, self.env)
-                    policy_logits = [policy_logits[i] if i in legal_actions else 0 for i in self.action_space]
-                    
+                    legal_actions = self.get_legal_actions(obs[0], action_history)
+                    mask = torch.zeros_like(policy_logits, dtype=torch.bool)
+                    mask[legal_actions] = True
+                    policy_logits.masked_fill_(~mask, -float('inf'))
+
                     state = self.scale_gradient(state, 0.5)
 
                     predictions.append((policy_logits, predicted_reward, value))
                     action_history.append(a)
                 
                 # loss
-                for i, pred in enumerate(predictions):
-                    policy_logits, predicted_reward, value = pred
-                    u, target_policy, target_value = targets[i]
+                # TODO: revisit length of predictions vs length of targets
+                # for i, pred in enumerate(predictions):
+                for i in range(len(targets[0])):
+                    policy_logits, predicted_reward, value = predictions[i]
+                    u, target_policy, target_value = targets[0][i], targets[1][i], targets[2][i]
+                    u = u.unsqueeze(0)
+                    target_value = target_value.unsqueeze(0)
 
                     # compare with corresponding
                     # immediate_reward, MSE
                     # target_policy, cross_entropy
                     # target_value, MSE
-                    loss += F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
+                    print(predicted_reward, u)
+                    print(policy_logits, target_policy)
+                    print(value, target_value)
+                    print()
+                    l = F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
+                    loss = self.scale_gradient(l, (1.0 / len(actions)))
 
             self.optimizer.zero_grad()
 
