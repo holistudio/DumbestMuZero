@@ -1,6 +1,50 @@
 # DEV LOG
 
-#@ 2025-12-21
+## 2025-12-22
+
+OK now going to just fully read the DeepMind's pseudo-code and take a look at each part side-by-side:
+
+- DM's `Game` class tracks `child_visits` and `root_values`, which are:
+  - `child_visits` the *normalized* child visits serving as target policy during training
+  - `root_values` which are then used to derive a target value from discounted rewards/values. A `td_steps` parameter is used to look ahead a limited number of steps when computing the discounted value, necessary for very long games.
+  - Another small-but-big detail is that `Game.make_target()` makes sure to include tuple for the targets for the `Network.initial_inference()`, which doesn't predict a reward value, but the target reward is provided as `last_reward = 0`.
+- DM's `ReplayBuffer.window_size` specifies the number of game trajectories in the buffer.
+  - Whem a game trajectory is stored with `ReplayBuffer.save_game()` the older games are popped off once the length of the buffer exceeds `window_size`.
+  - `window_size` doesn't specify the number of total steps (state action transitions) an agent has made/experienced. It specifies the total number of game episodes/entire trajectories the agent has experienced.
+- DM uses a `Network` class to do both `initial_inference()` and `recurrent_inference` to elegantly combine the outputs of the three neural nets, etc.
+  - Then `SharedStorage` keeps track of the latest training network weights for running parallel self-play jobs
+- `select_action()` makes use of softmax temperature when sampling the next action to play in a game.
+  - similarly `add_exploration_noise` "adds dirichlet noise to the prior of the root to encourage the search to explore new actions."
+- In `ucb_score()`:
+  - This line looks different from what I did: `value_score = child.reward + config.discount * min_max_stats.normalize(child.value())`
+  - In equivalent variable names, my `value_score = min_max_stats.normalize(child.value()`...
+  - the `value_score = 0` if the child node in question doesn't have any visit counts. I've done the same thing basically by reporting a node's `mean_value` is 0 if it has `N=0` visit counts.
+- `backpropagate()` looks way nicer than my `backup()` function, especially with fewer if statements.
+  - it seems like the backpropagate starts with the leaf node.
+- my `search()` function has to be compared to DM's `play_game()` and `run_mcts()` functions:
+  - `play_game()` creates the root node and sets its state with the `intial_inference()` using representation and dynamics function
+  - `run_mcts()` runs the tree search simulations
+- `train_network()` initializes the networks and Momentum optimizer and includes calls to function that save the network weights over multiple training steps.
+
+Things I want to review and revise carefully:
+- My `ReplayBuffer` stores the `final_outcome` and `reward` two separate lists.
+  - For a board game a single list is all you need and should look something like `[0, 0, 0,...,0,+1,-1]`
+  - This does leave me feeling a little confused about how self-play happens - how do you record the player_2's loss after the player_1 wins?
+- My current code doesn't yet discount the rewards and values when computing target values. Even though I am only interested in getting things working for tic-tac-toe with a max of 9 steps per game, this seems like a useful thing to compute should I ever extend this to other games.
+- I *think* that the reason my current `predictions` and `targets` lists are different lengths is because I do NOT include the target for the initial inference...
+- Ensure the buffer length remains under a specified `buffer_size`
+- Softmax temperature sampling and Dirichlet noise seem like overkill when I just want to get MuZero to play tic-tac-toe BUT could still be necessary ways to encourage exploration during training, generating more diverse data that we now really need since we are using three friggin' neural nets...
+- Double check my `pUCT()` function and see how to implement `value_score = child.reward + config.discount * min_max_stats.normalize(child.value())` using my own class definitions. More importantly ask why this is done, since it doesn't appear to match the Equation 2...
+- I'll re-write my `backup()` using `reversed(search_path)` and see if it makes sense to not care if the current node is a leaf node or not.
+- In conjunction with the above, the `search()` function may need to be revised in a couple ways:
+  - After the root node is created with a hidden state, there shouldn't be a `backup()`...
+- add training loop to `update()` function so that the networks train over multiple epochs / multiple batches.
+- consider switching to the MomentumOptimizer...
+- I sorta think I have to now set up a self-play muzero training loop, and write a separate evaluation function that pits MuZeroAgent against random agent as player 1 or player 2 and see the win-loss-draw proportions.
+
+
+
+## 2025-12-21
 
 Tried to make a push to finish this thing and...
 - well it can run through games and update weights after computing a loss function but...
