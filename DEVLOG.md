@@ -1,6 +1,6 @@
 # DEV LOG
 
-# 2025-12-21
+#@ 2025-12-21
 
 Tried to make a push to finish this thing and...
 - well it can run through games and update weights after computing a loss function but...
@@ -40,7 +40,7 @@ Action Probability 8 = 13.64%
 
 Lots more debugging ahead.
 
-# 2025-12-20
+#@ 2025-12-20
 
 OK, time to make this more real with an actual `MuZeroAgent` class. I've been shying away from doing this until now because I really wanted to focus on the individual functions rather than worry about which variables have to be attributes of which class. But now I do want to start thinking about this more.
 
@@ -106,9 +106,9 @@ $$
 G^k = \gamma^{l-k}{v^l} + \sum_{\tau=0}^{l-1-k}{\gamma r_{k+1+\tau}}  
 $$
 
-To the RL PhDs this is trivial because they probably know the discounted reward formulas from Sutton and Barto off the top of their heads, but for a dumb person like me, I though $\gamma^{l-k}{v^l}$ was *inside* the summation term...as a constant...accruing over and over each node...
+To the RL PhDs, this is trivial because they probably know the discounted reward formulas from Sutton and Barto off the top of their heads, but for a dumb person like me, I thought $\gamma^{l-k}{v^l}$ was *inside* the summation term...as a constant...accruing over and over each node...
 
-Yes, in hindsight this is really dumb but hey lesson learned! My nicer equation version clearly shows that you start by initializing $G$ with the value $v$ computed by the prediction function $f_\theta$ before going into the backup for-loop.
+Yes, in hindsight this is really dumb, but hey lesson learned! My nicer equation version clearly shows that you start by initializing $G$ with the value $v$ computed by the prediction function $f_\theta$ before going into the backup for-loop.
 
 More importantly, I wrote an inner for loop to represent this summation performed at node $k$ but actually, there's no need for an inner for loop. As you traverse the nodes in reverse order, you can use the previously computed discounted reward $G^{k+1}$ in your current computation of $G^{k}$. i.e.:
 
