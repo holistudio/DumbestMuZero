@@ -14,13 +14,15 @@ So all in all, I still have a ways to go before I can start properly tuning the 
 
 Small update: twiddled a bit with hyperparameters (`max_iters`) and saw some encouraging training results at the end of 100 episodes:
 
+```
 0:07:51.005167 EP=99, [64, 29, 7] # W-L-D record as player 1 against random agent
+```
 
 Of course, I also continued running the trained model in a visible game:
 
 <img src="./img/251221_initial_muzero_test.png" width="400 px">
 
-The agent is Player X and moved first in this game. After Player O's random move in board location index=5, the agent predicted the following action probabilities:
+The agent is Player 1 placing the X pieces. After Player O's random move in board location index=5, the agent predicted the following action probabilities:
 
 ```
 Action Probability 0 = 0.00%
