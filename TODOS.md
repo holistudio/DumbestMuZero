@@ -45,26 +45,30 @@
    - [x] push steps to ReplayBuffer via `agent.experience()`
    - [x] check if ReplayBuffer is full
    - [x] loop through ReplayBuffer
-   - [ ] ReplayBuffer sample_batch()
+   - [x] ReplayBuffer sample_batch()
    - [ ] Final outcome z maybe with a discount factor???
    - [ ] Final outcome +/- based on current player and node player_turn
-   - [ ] Three neural nets as one model
+   - [ ] ~~Three neural nets as one model~~
    - [x] loss function
    - [x] reward loss term
    - [x] value loss term
    - [x] policy loss term
-   - [ ] weight decay/regularization term
-   - [ ] add gradient scale for loss 
-   - [ ] what params go here? neural nets'?
-   - [ ] probably need L2 norm for regularization
-   - [ ] get loss.backward() to work
+   - [x] weight decay/regularization term
+   - [x] add gradient scale 
+   - [x] what params go here? neural nets'?
+   - [ ] ~~probably need L2 norm for regularization~~ handled by AdamW
+   - [x] get loss.backward() to work
+   - [x] re-evaluate where to put `torch.no_grad()` and `model.train` vs `eval()`
+   - [ ] evaluate where to specify cuda
+   - [ ] ReplayBuffer needs to discard the old episodes with newer experiences
 
 - [ ] Fit into `gymnasium` agent-game loop pattern
-   - [ ] `flatten()` return observation space as a 1-D vector
-   - [ ] `agent.step(obs)`
-   - [ ] `agent.update()`
-   - [ ] `agent.experience()` store recent returns from environment
-- [ ] for tic tac toe the search depth should be tracked to within 9 total steps
+   - [x] `flatten()` return observation space as a 1-D vector
+   - [x] `agent.step(obs)`
+   - [x] `agent.update()`
+   - [x] `agent.experience()` store recent returns from environment
+
+- [ ] ~~for tic tac toe the search depth should be tracked to within 9 total steps~~ not needed, when legal actions are still possible to deduce with initial observation and action history
 
 - [ ] Get a full code review
 
