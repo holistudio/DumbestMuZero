@@ -1,5 +1,17 @@
 # DEV LOG
 
+# 2025-12-21
+
+Tried to make a push to finish this thing and...
+- well it can run through games and update weights after computing a loss function but...
+- I think there's an issue with the way I'm computing target value (without a discount factor)
+- There may be some other issues with how I'm pairing the targets with the neural network predictions...
+- And I still haven't gotten around to the issue of self play
+- and storing neural net weights...
+- and separate training and test loops...
+
+So all in all, I still have a ways to go before I can start properly tuning the various hyperparameters.
+
 # 2025-12-20
 
 OK, time to make this more real with an actual `MuZeroAgent` class. I've been shying away from doing this until now because I really wanted to focus on the individual functions rather than worry about which variables have to be attributes of which class. But now I do want to start thinking about this more.
