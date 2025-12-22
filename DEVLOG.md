@@ -12,6 +12,32 @@ Tried to make a push to finish this thing and...
 
 So all in all, I still have a ways to go before I can start properly tuning the various hyperparameters.
 
+Small update: twiddled a bit with hyperparameters (`max_iters`) and saw some encouraging training results at the end of 100 episodes:
+
+0:07:51.005167 EP=99, [64, 29, 7] # W-L-D record as player 1 against random agent
+
+Of course, I also continued running the trained model in a visible game:
+
+<img src="./img/251221_initial_muzero_test.png" width="400 px">
+
+The agent is Player X and moved first in this game. After Player O's random move in board location index=5, the agent predicted the following action probabilities:
+
+```
+Action Probability 0 = 0.00%
+Action Probability 1 = 0.00%
+Action Probability 2 = 31.83%
+Action Probability 3 = 0.00%
+Action Probability 4 = 23.64%
+Action Probability 5 = 0.00%
+Action Probability 6 = 15.59%
+Action Probability 7 = 15.24%
+Action Probability 8 = 13.64%
+```
+
+...and went to board index=2! Why isn't the probability for board location 6 wayyy higher?!?!?
+
+Lots more debugging ahead.
+
 # 2025-12-20
 
 OK, time to make this more real with an actual `MuZeroAgent` class. I've been shying away from doing this until now because I really wanted to focus on the individual functions rather than worry about which variables have to be attributes of which class. But now I do want to start thinking about this more.
