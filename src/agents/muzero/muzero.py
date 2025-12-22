@@ -115,9 +115,6 @@ class ReplayBuffer(object):
         # action direct from what was chosen by select_action (different from child visits if sampled)
         self.actions.append(action)
 
-        print('store_step()')
-        print(target_action_probs)
-        print()
         self.target_policies.append(target_action_probs)
 
         # somehow get the immediate_reward from environment
@@ -154,9 +151,6 @@ class ReplayBuffer(object):
 
             # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
             # td_steps, n steps into the future for target_value
-            print("sample_batch()")
-            print(target_policies[ix:ix+k_unroll_steps])
-            print()
             targets = (torch.tensor(immediate_rewards[ix:ix+k_unroll_steps], dtype=torch.float32), 
                        target_policies[ix:ix+k_unroll_steps], 
                        torch.tensor(final_outcomes[ix:ix+k_unroll_steps], dtype=torch.float32))
@@ -330,7 +324,7 @@ class MuZeroAgent(object):
             if child_node.N > max_visits:
                 max_visits = child_node.N
                 best_action = a
-        print(f"Action Probabilities: {self.action_probs.tolist()}")
+        # print(f"Action Probabilities: {self.action_probs.tolist()}")
         return best_action
 
     def search(self, obs):
