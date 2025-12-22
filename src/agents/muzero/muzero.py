@@ -226,6 +226,7 @@ class MuZeroAgent(object):
         return obs
 
     def get_legal_actions(self, temp_board, history):
+        temp_board = temp_board.clone()
         if len(history) > 0:
             for a in history:
                 temp_board[a] = -1
@@ -408,7 +409,7 @@ class MuZeroAgent(object):
                     legal_actions = self.get_legal_actions(obs[0], action_history)
                     mask = torch.zeros_like(policy_logits, dtype=torch.bool)
                     mask[legal_actions] = True
-                    policy_logits.masked_fill_(~mask, -float('inf'))
+                    policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
 
                     state = self.scale_gradient(state, 0.5)
 
@@ -428,12 +429,8 @@ class MuZeroAgent(object):
                     # immediate_reward, MSE
                     # target_policy, cross_entropy
                     # target_value, MSE
-                    print(predicted_reward, u)
-                    print(policy_logits, target_policy)
-                    print(value, target_value)
-                    print()
                     l = F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
-                    loss = self.scale_gradient(l, (1.0 / len(actions)))
+                    loss += self.scale_gradient(l, (1.0 / len(actions)))
 
             self.optimizer.zero_grad()
 
