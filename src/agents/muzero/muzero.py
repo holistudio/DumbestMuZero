@@ -82,10 +82,11 @@ class Node(object):
 """REPLAY BUFFER"""
 
 class ReplayBuffer(object):
-    def __init__(self, batch_size):
+    def __init__(self, buffer_size, batch_size):
         self.batch_size = batch_size
+        self.buffer_size = buffer_size
+
         self.buffer = [] # store each game's trajectory
-        self.count = 0
 
         # TRAJECTORY = zip(observations, player_turns, actions, immediate_rewards, target_policies, final_outcomes)
         self.observations = []
@@ -119,7 +120,6 @@ class ReplayBuffer(object):
 
         # somehow get the immediate_reward from environment
         self.immediate_rewards.append(immediate_reward)
-        self.count += 1
         pass
 
     def store_trajectory(self):
@@ -130,6 +130,8 @@ class ReplayBuffer(object):
         
         trajectory = copy.deepcopy(trajectory)
         self.buffer.append(trajectory)
+        if len(self.buffer) > self.buffer_size:
+            self.buffer.pop(0)
 
         self.reset_trajectory()
         pass
@@ -377,7 +379,7 @@ class MuZeroAgent(object):
         return tensor * scale + tensor.detach() * (1.0 - scale)
 
     def update(self):
-        if self.replay_buffer.count > self.buffer_size:
+        if len(self.replay_buffer.buffer) > self.buffer_size:
             self.state_function.train()
             self.dynamics_function.train()
             self.prediction_function.train()
