@@ -265,10 +265,14 @@ class MuZeroAgent(object):
         # refer to Equation 2, Appendix B
         c1 = 1.25
         c2 = 19652
-        Q = node.mean_value()
-        if self.max_Q > self.min_Q:
-            Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
         N = node.N
+        if N > 0:
+            Q = node.mean_value()
+            if self.max_Q > self.min_Q:
+                Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
+            Q = node.R + self.gamma * Q 
+        else:
+            Q = 0
         P = node.P
         N_sum = sum_visits
         return (Q + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
