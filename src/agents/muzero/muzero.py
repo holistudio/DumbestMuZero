@@ -141,7 +141,7 @@ class ReplayBuffer(object):
 
         num_eps = len(self.buffer)
         for b in range(self.batch_size):
-            random_ep = self.buffer[random.randint(0, num_eps-1)]
+            random_ep = self.buffer[random.randint(num_eps // 2, num_eps-1)]  # TODO: look into this "front-half-most-recent games" buffer lookup...
             observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
             immediate_rewards, target_policies, final_outcomes = random_ep['rewards'], random_ep['target_policies'], random_ep['final_outcomes']
             
