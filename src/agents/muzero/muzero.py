@@ -127,12 +127,14 @@ class ReplayBuffer(object):
     def store_trajectory(self):
         # assume the game is over and outcome is recorded as the last reward
         final_outcome = self.rewards[-1]
-        other_player_outcome = -final_outcome
-        self.rewards[-2] = other_player_outcome
 
-        print(self.player_turns)
-        print(self.actions)
-        print(self.rewards)
+        # TODO: revisit this sign flip
+        # other_player_outcome = -final_outcome
+        # self.rewards[-2] = other_player_outcome
+
+        # print(self.player_turns)
+        # print(self.actions)
+        # print(self.rewards)
 
         trajectory = dict(obs=self.observations, 
                          turns=self.player_turns, actions=self.actions, 
@@ -361,7 +363,7 @@ class MuZeroAgent(object):
 
     def backup(self, value, search_path, leaf_player):
         G = value
-        for current_node in search_path.reverse():
+        for current_node in reversed(search_path):
             current_node.value_sum += G if current_node.current_player == leaf_player else -G
             current_node.N += 1
             self.update_min_max_Q(current_node.mean_value())
