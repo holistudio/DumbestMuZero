@@ -182,6 +182,7 @@ class MuZeroAgent(object):
         self.obs_size = self.observation_space.shape
         self.action_space = environment.action_space('player_1')
         self.action_size = self.action_space.n
+        self.root_value = 0
         self.action_probs = torch.zeros(self.action_size)
 
         self.replay_buffer = ReplayBuffer(config['batch_size'])
@@ -364,11 +365,12 @@ class MuZeroAgent(object):
                 self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
                 
                 self.backup(value, search_path)
+            self.root_value = search_path[0].value_sum
         return self.select_action(root_node)
 
     def experience(self, observation, player_turn, action, reward, terminal):
         obs = self.preprocess_obs(observation)
-        self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, reward)
+        self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, reward, self.root_value)
         if terminal:
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
             # self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]
