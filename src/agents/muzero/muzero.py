@@ -319,7 +319,7 @@ class MuZeroAgent(object):
 
     def backup(self, value, search_path):
         G = value
-        for current_node in reversed(search_path):
+        for current_node in search_path.reverse():
             current_player = 0 if self.env.agent_selection == 'player_1' else 1
             current_node.value_sum += G if current_node.current_player == current_player else -G
             current_node.N += 1
