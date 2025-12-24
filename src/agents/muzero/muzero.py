@@ -420,6 +420,16 @@ class MuZeroAgent(object):
         action = self.search(obs)
         return action
     
+    def act(self, observation):
+        # TODO: review if nothing else different from step()
+        self.state_function.eval()
+        self.dynamics_function.eval()
+        self.prediction_function.eval()
+        
+        obs = self.preprocess_obs(observation)
+        action = self.search(obs)
+        return action
+
     def scale_gradient(self, tensor, scale):
         return tensor * scale + tensor.detach() * (1.0 - scale)
 
