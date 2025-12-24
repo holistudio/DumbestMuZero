@@ -132,9 +132,11 @@ class ReplayBuffer(object):
         # other_player_outcome = -final_outcome
         # self.rewards[-2] = other_player_outcome
 
-        # print(self.player_turns)
-        # print(self.actions)
-        # print(self.rewards)
+        print('store_trajectory()')
+        print(f"player_turns: {self.player_turns}")
+        print(f"actions: {self.actions}")
+        print(f"rewards: {self.rewards}")
+        print()
 
         trajectory = dict(obs=self.observations, 
                          turns=self.player_turns, actions=self.actions, 
@@ -153,6 +155,9 @@ class ReplayBuffer(object):
     def sample_batch(self, k_unroll_steps, gamma):
         # return batches of trajectories
         # each of length k_unroll_steps
+
+        print('sample_batch()')
+
         batch = []
 
         num_eps = len(self.buffer)
@@ -160,12 +165,18 @@ class ReplayBuffer(object):
             random_ep = self.buffer[random.randint(num_eps // 2, num_eps-1)]  # TODO: look into this "front-half-most-recent games" buffer lookup...
             observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
             rewards, target_policies, root_values = random_ep['rewards'], random_ep['target_policies'], random_ep['root_values']
+            print(f'TRAJECTORY')
+            print(f'player_turns: {player_turns}')
+            print(f'actions: {actions}')
+            print(f'rewards: {rewards}')
             
             # k_unroll_steps, capped k steps in trajectory for training
             ix = random.randint(0, len(root_values) - k_unroll_steps -1)
             current_player = player_turns[ix]
+            print(f'ix: {ix}')
 
             td_steps = len(root_values) - ix
+            print(f'td_steps: {td_steps}')
 
             inputs = (observations[ix:ix+k_unroll_steps], player_turns[ix:ix+k_unroll_steps], actions[ix:ix+k_unroll_steps])
 
@@ -177,10 +188,12 @@ class ReplayBuffer(object):
             targets = []
             for i in range(ix, ix+k_unroll_steps+1):
                 bootstrap_ix = i + td_steps
+                
                 if bootstrap_ix % 2 == 0:
                     bootstrap_player = 0 # player 1
                 else:
                     bootstrap_player = 1 # player 2
+                print(f"bootstrap_ix: {bootstrap_ix}, player={bootstrap_player}")
 
                 if bootstrap_ix < len(root_values):
                     if current_player == bootstrap_player:
@@ -203,14 +216,23 @@ class ReplayBuffer(object):
                     last_reward = rewards[i-1]
                 else:
                     last_reward = 0
+
+                print(f'i:{i}, value:{value}, reward:{last_reward}')
                 
                 if i < len(root_values):
-                    targets.append((value, last_reward, target_policies[i]))
+                    targets.append((target_policies[i], last_reward, value))
                 else:
-                    targets.append((0, last_reward, []))
-
+                    targets.append(([], last_reward, 0))
+                    print(targets[-1])
+            
+            
+            print('targets')
+            print(f'target_values: {[value for (_,last_reward,value) in targets]}')
+            print(f'target_rewards: {[last_reward for (_,last_reward,value) in targets]}')
+            
             sequence = (inputs, targets)
             batch.append(sequence)
+        pause = input('end of batch sampling\n')
         return batch
 
 
@@ -440,7 +462,8 @@ class MuZeroAgent(object):
         return tensor * scale + tensor.detach() * (1.0 - scale)
 
     def update(self):
-        if len(self.replay_buffer.buffer) > self.buffer_size:
+        print('update()')
+        if len(self.replay_buffer.buffer) >= self.buffer_size:
             self.state_function.train()
             self.dynamics_function.train()
             self.prediction_function.train()
@@ -478,14 +501,22 @@ class MuZeroAgent(object):
                         predictions.append((policy_logits, predicted_reward, value))
                         action_history.append(a)
                     
+                    print(f'prediction_values: {[f"{pv.item():.2f}" for _,pr,pv in predictions]}')
+                    print(f'target_values: {[tv for _,tr,tv in targets]}')
+                    
+                    print(f'prediction_rewards: {[f"{pr.item():.2f}" for _,pr,pv in predictions]}')
+                    print(f'target_rewards: {[tr for _,tr,tv in targets]}')
                     # loss
                     # TODO: revisit length of predictions vs length of targets
                     # for i, pred in enumerate(predictions):
                     for i in range(len(targets[0])):
                         policy_logits, predicted_reward, value = predictions[i]
-                        u, target_policy, target_value = targets[0][i], targets[1][i], targets[2][i]
-                        u = u.unsqueeze(0)
-                        target_value = target_value.unsqueeze(0)
+                        target_policy, u, target_value = torch.tensor(targets[i][0]), torch.tensor([targets[i][1]],dtype=torch.float32), torch.tensor([targets[i][2]],dtype=torch.float32)
+                        print(target_policy)
+                        print(u)
+                        print(target_value)
+                        # u = u.unsqueeze(0)
+                        # target_value = target_value.unsqueeze(0)
 
                         # compare with corresponding
                         # immediate_reward, MSE
