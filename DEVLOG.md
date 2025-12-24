@@ -1,5 +1,14 @@
 # DEV LOG
 
+## 2025-12-23
+
+Slowly making my way through the TODOs I wrote yesterday. Going to call it a night but one other major thought bubble is I will probably resort to some vibe-coding JUST to help debug:
+
+- Show in terminal output what the replay buffer looks like after a game is complete, just to double check the values
+- Show what a single simulation tree looks like to make sure the values are the right sign.
+
+I'll add more terminal output debugging ideas later but that's it for now...
+
 ## 2025-12-22
 
 OK now going to just fully read the DeepMind's pseudo-code and take a look at each part side-by-side:
@@ -30,16 +39,18 @@ Things I want to review and revise carefully:
 - My `ReplayBuffer` stores the `final_outcome` and `reward` two separate lists.
   - For a board game a single list is all you need and should look something like `[0, 0, 0,...,0,+1,-1]`
   - This does leave me feeling a little confused about how self-play happens - how do you record the player_2's loss after the player_1 wins?
+  - Looks like DM's pseudocode doesn't show how the target value needs to flip in sign for the opposing player (i.e., `Game.make_target()` is a little incomplete, it does have `to_play` as an input parameter, but doesn't make use of it. this function should check if the player at `state_index` is different from the player at `bootstrap_index` and flip the sign)
 - My current code doesn't yet discount the rewards and values when computing target values. Even though I am only interested in getting things working for tic-tac-toe with a max of 9 steps per game, this seems like a useful thing to compute should I ever extend this to other games.
 - I *think* that the reason my current `predictions` and `targets` lists are different lengths is because I do NOT include the target for the initial inference...
-- Ensure the buffer length remains under a specified `buffer_size`
+- [x] Ensure the buffer length remains under a specified `buffer_size`
 - Softmax temperature sampling and Dirichlet noise seem like overkill when I just want to get MuZero to play tic-tac-toe BUT could still be necessary ways to encourage exploration during training, generating more diverse data that we now really need since we are using three friggin' neural nets...
-- Double check my `pUCT()` function and see how to implement `value_score = child.reward + config.discount * min_max_stats.normalize(child.value())` using my own class definitions. 
-- More importantly ask why this is done, since it doesn't appear to match the Equation 2...
+- [x] Double check my `pUCT()` function and see how to implement `value_score = child.reward + config.discount * min_max_stats.normalize(child.value())` using my own class definitions. 
+- [x] More importantly ask why this is done, since it doesn't appear to match the Equation 2...
   - Welp, looks like I forgot the basics of the Bellman Equation and only used the value of the child as the "Q-value." I should remember that a Q-value is almost always an immediate reward and discounted value sum ($Q = R + \gamma V$)
-- I'll re-write my `backup()` using `reversed(search_path)` and see if it makes sense to not care if the current node is a leaf node or not.
-- In conjunction with the above, the `search()` function may need to be revised in a couple ways:
-  - After the root node is created with a hidden state, there shouldn't be a `backup()`...
+- [x] I'll re-write my `backup()` using `reversed(search_path)` and see if it makes sense to not care if the current node is a leaf node or not.
+- [x] In conjunction with the above, the `search()` function may need to be revised in a couple ways:
+  - [x] After the root node is created with a hidden state, there shouldn't be a `backup()`...
+  - [x] the `backup()` should account for the latest leaf node's `current_player` (found via the `whose_turn(action_history)`) and flip the signs of the value accordingly
 - add training loop to `update()` function so that the networks train over multiple epochs / multiple batches.
 - consider switching to the MomentumOptimizer...
 - I sorta think I have to now set up a self-play muzero training loop, and write a separate evaluation function that pits MuZeroAgent against random agent as player 1 or player 2 and see the win-loss-draw proportions.
