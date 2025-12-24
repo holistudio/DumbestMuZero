@@ -161,10 +161,7 @@ class ReplayBuffer(object):
             
             # k_unroll_steps, capped k steps in trajectory for training
             ix = random.randint(0, len(root_values) - k_unroll_steps -1)
-            if ix % 2 == 0:
-                current_player = 0 # player 1
-            else:
-                current_player = 1 # player 2
+            current_player = player_turns[ix]
 
             td_steps = len(root_values) - ix
 
@@ -408,8 +405,9 @@ class MuZeroAgent(object):
             self.root_value = search_path[0].value_sum
         return self.select_action(root_node)
 
-    def experience(self, observation, player_turn, action, reward, terminal):
+    def experience(self, observation, player_label, action, reward, terminal):
         obs = self.preprocess_obs(observation)
+        player_turn = 0 if player_label == 'player_1' else 1
         self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, reward, self.root_value)
         if terminal:
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
