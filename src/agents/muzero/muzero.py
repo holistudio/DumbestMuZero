@@ -148,7 +148,7 @@ class ReplayBuffer(object):
         self.reset_trajectory()
         pass
 
-    def sample_batch(self, k_unroll_steps):
+    def sample_batch(self, k_unroll_steps, gamma):
         # return batches of trajectories
         # each of length k_unroll_steps
         batch = []
@@ -160,15 +160,55 @@ class ReplayBuffer(object):
             rewards, target_policies, root_values = random_ep['rewards'], random_ep['target_policies'], random_ep['root_values']
             
             # k_unroll_steps, capped k steps in trajectory for training
-            ix = random.randint(0, len(random_ep) - k_unroll_steps -1)
+            ix = random.randint(0, len(root_values) - k_unroll_steps -1)
+            if ix % 2 == 0:
+                current_player = 0 # player 1
+            else:
+                current_player = 1 # player 2
+
+            td_steps = len(root_values) - ix
+
             inputs = (observations[ix:ix+k_unroll_steps], player_turns[ix:ix+k_unroll_steps], actions[ix:ix+k_unroll_steps])
 
             # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
             # td_steps, n steps into the future for target_value
             # targets = (torch.tensor(rewards[ix:ix+k_unroll_steps], dtype=torch.float32), 
             #            target_policies[ix:ix+k_unroll_steps])
+            # TODO: revisit if the player accounting is done correctly
+            targets = []
+            for i in range(ix, ix+k_unroll_steps+1):
+                bootstrap_ix = i + td_steps
+                if bootstrap_ix % 2 == 0:
+                    bootstrap_player = 0 # player 1
+                else:
+                    bootstrap_player = 1 # player 2
 
-
+                if bootstrap_ix < len(root_values):
+                    if current_player == bootstrap_player:
+                        value = root_values[bootstrap_ix] * gamma**td_steps
+                    else:
+                        value = -root_values[bootstrap_ix] * gamma**td_steps
+                else:
+                    value = 0
+                for j, reward in enumerate(rewards[i:bootstrap_ix]):
+                    if j % 2 == 0:
+                        j_player = 0 # player 1
+                    else:
+                        j_player = 1 # player 2
+                    if j_player == current_player:
+                        value += reward * gamma**j
+                    else:
+                        value -= reward * gamma**j
+                
+                if i > 0 and i <= len(rewards):
+                    last_reward = rewards[i-1]
+                else:
+                    last_reward = 0
+                
+                if i < len(root_values):
+                    targets.append((value, last_reward, target_policies[i]))
+                else:
+                    targets.append((0, last_reward, []))
 
             sequence = (inputs, targets)
             batch.append(sequence)
@@ -394,7 +434,7 @@ class MuZeroAgent(object):
             loss = 0
             
             # load from batch
-            batch = self.replay_buffer.sample_batch(self.k_unroll_steps)
+            batch = self.replay_buffer.sample_batch(self.k_unroll_steps, self.gamma)
             for sequence in batch:
                 inputs, targets = sequence
 
