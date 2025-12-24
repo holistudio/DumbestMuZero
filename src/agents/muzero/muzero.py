@@ -318,11 +318,10 @@ class MuZeroAgent(object):
             action_history.append(action)
         return node, search_path, action_history
 
-    def backup(self, value, search_path):
+    def backup(self, value, search_path, leaf_player):
         G = value
         for current_node in search_path.reverse():
-            current_player = 0 if self.env.agent_selection == 'player_1' else 1
-            current_node.value_sum += G if current_node.current_player == current_player else -G
+            current_node.value_sum += G if current_node.current_player == leaf_player else -G
             current_node.N += 1
             self.update_min_max_Q(current_node.mean_value())
             G = current_node.R + self.gamma * G
@@ -345,14 +344,15 @@ class MuZeroAgent(object):
     def search(self, obs):
         with torch.no_grad():
             root_node = Node(0)
-            action_history = []
-            search_path = [root_node]
+
             initial_state = self.state_function(obs)
             policy_logits, value = self.prediction_function(initial_state)
-            legal_actions = self.get_legal_actions(obs, action_history)
-            self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
-            self.backup(value, search_path) # backup the value of the root
 
+            action_history = []
+            legal_actions = self.get_legal_actions(obs, action_history)
+
+            self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
+            
             for _ in range(self.max_iters):
                 last_node, search_path, action_history = self.selection(root_node)
 
@@ -364,7 +364,7 @@ class MuZeroAgent(object):
                 legal_actions = self.get_legal_actions(obs, action_history)
                 self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
                 
-                self.backup(value, search_path)
+                self.backup(value, search_path, self.whose_turn(action_history))
             self.root_value = search_path[0].value_sum
         return self.select_action(root_node)
 
