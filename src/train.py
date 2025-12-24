@@ -14,6 +14,7 @@ config = {
     'lr': 3e-4,
     'weight_decay': 1e-4,
     'max_iters': 1000,
+    'train_iters': 100,
     'gamma': 0.997,
     'k_unroll_steps': 5
 }
