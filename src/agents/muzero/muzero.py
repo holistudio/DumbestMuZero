@@ -219,8 +219,7 @@ class MuZeroAgent(object):
         self.obs_size = self.observation_space.shape
         self.action_space = environment.action_space('player_1')
         self.action_size = self.action_space.n
-        self.root_value = 0
-        self.action_probs = torch.zeros(self.action_size)
+        
 
         self.replay_buffer = ReplayBuffer(config['batch_size'])
         self.buffer_size = config['buffer_size']
@@ -249,8 +248,13 @@ class MuZeroAgent(object):
         self.min_Q = float('inf')
         self.max_Q = -float('inf')
         self.max_iters = config['max_iters']
+        self.train_iters = config['train_iters']
         self.gamma = config['gamma']
         self.k_unroll_steps = config['k_unroll_steps']
+
+        self.root_value = 0
+        self.action_probs = torch.zeros(self.action_size)
+
 
         self.state_function.eval()
         self.dynamics_function.eval()
@@ -439,59 +443,60 @@ class MuZeroAgent(object):
             self.dynamics_function.train()
             self.prediction_function.train()
 
-            loss = 0
-            
-            # load from batch
-            batch = self.replay_buffer.sample_batch(self.k_unroll_steps, self.gamma)
-            for sequence in batch:
-                inputs, targets = sequence
-
-                obs, player_turns, actions = inputs
+            for epoch in range(self.train_iters):
+                loss = 0
                 
-                # neural nets predict: predicted_reward, policy_logits, predicted_value
-                state = self.state_function(obs[0])
-                predicted_reward = torch.tensor(0.0, dtype=torch.float32).unsqueeze(0)
-                policy_logits, value = self.prediction_function(state)
-                
-                predictions = [(policy_logits, predicted_reward, value)]
+                # load from batch
+                batch = self.replay_buffer.sample_batch(self.k_unroll_steps, self.gamma)
+                for sequence in batch:
+                    inputs, targets = sequence
 
-                action_history = []
-                for a in actions:
-                    latest_action = torch.tensor(a, dtype=torch.float32).unsqueeze(0)
-                    state, predicted_reward  = self.dynamics_function(state, latest_action)
+                    obs, player_turns, actions = inputs
+                    
+                    # neural nets predict: predicted_reward, policy_logits, predicted_value
+                    state = self.state_function(obs[0])
+                    predicted_reward = torch.tensor(0.0, dtype=torch.float32).unsqueeze(0)
                     policy_logits, value = self.prediction_function(state)
+                    
+                    predictions = [(policy_logits, predicted_reward, value)]
 
-                    legal_actions = self.get_legal_actions(obs[0], action_history)
-                    mask = torch.zeros_like(policy_logits, dtype=torch.bool)
-                    mask[legal_actions] = True
-                    policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
+                    action_history = []
+                    for a in actions:
+                        latest_action = torch.tensor(a, dtype=torch.float32).unsqueeze(0)
+                        state, predicted_reward  = self.dynamics_function(state, latest_action)
+                        policy_logits, value = self.prediction_function(state)
 
-                    state = self.scale_gradient(state, 0.5)
+                        legal_actions = self.get_legal_actions(obs[0], action_history)
+                        mask = torch.zeros_like(policy_logits, dtype=torch.bool)
+                        mask[legal_actions] = True
+                        policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
 
-                    predictions.append((policy_logits, predicted_reward, value))
-                    action_history.append(a)
-                
-                # loss
-                # TODO: revisit length of predictions vs length of targets
-                # for i, pred in enumerate(predictions):
-                for i in range(len(targets[0])):
-                    policy_logits, predicted_reward, value = predictions[i]
-                    u, target_policy, target_value = targets[0][i], targets[1][i], targets[2][i]
-                    u = u.unsqueeze(0)
-                    target_value = target_value.unsqueeze(0)
+                        state = self.scale_gradient(state, 0.5)
 
-                    # compare with corresponding
-                    # immediate_reward, MSE
-                    # target_policy, cross_entropy
-                    # target_value, MSE
-                    l = F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
-                    loss += self.scale_gradient(l, (1.0 / len(actions)))
+                        predictions.append((policy_logits, predicted_reward, value))
+                        action_history.append(a)
+                    
+                    # loss
+                    # TODO: revisit length of predictions vs length of targets
+                    # for i, pred in enumerate(predictions):
+                    for i in range(len(targets[0])):
+                        policy_logits, predicted_reward, value = predictions[i]
+                        u, target_policy, target_value = targets[0][i], targets[1][i], targets[2][i]
+                        u = u.unsqueeze(0)
+                        target_value = target_value.unsqueeze(0)
 
-            self.optimizer.zero_grad()
+                        # compare with corresponding
+                        # immediate_reward, MSE
+                        # target_policy, cross_entropy
+                        # target_value, MSE
+                        l = F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
+                        loss += self.scale_gradient(l, (1.0 / len(actions)))
 
-            loss.backward()
+                self.optimizer.zero_grad()
 
-            self.optimizer.step()
+                loss.backward()
+
+                self.optimizer.step()
 
             self.state_function.eval()
             self.dynamics_function.eval()
