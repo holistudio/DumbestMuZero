@@ -221,7 +221,7 @@ class MuZeroAgent(object):
         self.action_size = self.action_space.n
         
 
-        self.replay_buffer = ReplayBuffer(config['batch_size'])
+        self.replay_buffer = ReplayBuffer(config['buffer_size'], config['batch_size'])
         self.buffer_size = config['buffer_size']
 
         self.state_function = StateFunction(self.obs_size[0],
