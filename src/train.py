@@ -20,18 +20,19 @@ config = {
 
 agent1 = MuZeroAgent(environment=env, config=config)
 
-agent_list = [agent1 , agent1]
-
+agents = {
+    'player_1': agent1,
+    'player_2': agent1
+}
 
 start_time = datetime.datetime.now()
 for ep in range(100):
-    idx = 0
     env.reset(seed=42)
 
     for a in env.agent_iter():
-        agent = agent_list[idx]
+        agent = agents[a]
         observation, reward, termination, truncation, info = env.last()
-
+        
         if termination or truncation:
             action = None
         else:
@@ -46,8 +47,8 @@ for ep in range(100):
                 action = agent.step(observation)
 
         env.step(action)
-        idx = (idx+1) % 2
-        
+        agent.experience(observation, a, action, env.rewards[a], termination)
+
     agent1.update()
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
     # pause = input('\npress enter for new game')
