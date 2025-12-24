@@ -93,8 +93,8 @@ class ReplayBuffer(object):
         self.player_turns = []
         self.actions = []
         self.target_policies = []
-        self.immediate_rewards = []
-        self.final_outcomes = []
+        self.rewards = []
+        self.root_values = []
         pass
     
     def reset_trajectory(self):
@@ -102,11 +102,11 @@ class ReplayBuffer(object):
         self.player_turns = []
         self.actions = []
         self.target_policies = []
-        self.immediate_rewards = []
-        self.final_outcomes = []
+        self.rewards = []
+        self.root_values = []
         pass
 
-    def store_step(self, obs, player_turn, action, target_action_probs, immediate_reward):
+    def store_step(self, obs, player_turn, action, target_action_probs, reward, root_value):
         # observation vector
         self.observations.append(obs)
 
@@ -118,15 +118,27 @@ class ReplayBuffer(object):
 
         self.target_policies.append(target_action_probs)
 
-        # somehow get the immediate_reward from environment
-        self.immediate_rewards.append(immediate_reward)
+        # get the reward from environment
+        self.rewards.append(reward)
+
+        self.root_values.append(root_value)
         pass
 
     def store_trajectory(self):
+        # assume the game is over and outcome is recorded as the last reward
+        final_outcome = self.rewards[-1]
+        other_player_outcome = -final_outcome
+        self.rewards[-2] = other_player_outcome
+
+        print(self.player_turns)
+        print(self.actions)
+        print(self.rewards)
+
         trajectory = dict(obs=self.observations, 
                          turns=self.player_turns, actions=self.actions, 
-                         rewards=self.immediate_rewards, # dynamics function target
-                         target_policies=self.target_policies, final_outcomes=self.final_outcomes) # prediction function targets
+                         rewards=self.rewards, # dynamics function target
+                         target_policies=self.target_policies,
+                         root_values=self.root_values) # prediction function targets
         
         trajectory = copy.deepcopy(trajectory)
         self.buffer.append(trajectory)
@@ -145,7 +157,7 @@ class ReplayBuffer(object):
         for b in range(self.batch_size):
             random_ep = self.buffer[random.randint(num_eps // 2, num_eps-1)]  # TODO: look into this "front-half-most-recent games" buffer lookup...
             observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
-            immediate_rewards, target_policies, final_outcomes = random_ep['rewards'], random_ep['target_policies'], random_ep['final_outcomes']
+            rewards, target_policies, root_values = random_ep['rewards'], random_ep['target_policies'], random_ep['root_values']
             
             # k_unroll_steps, capped k steps in trajectory for training
             ix = random.randint(0, len(random_ep) - k_unroll_steps -1)
@@ -153,9 +165,11 @@ class ReplayBuffer(object):
 
             # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
             # td_steps, n steps into the future for target_value
-            targets = (torch.tensor(immediate_rewards[ix:ix+k_unroll_steps], dtype=torch.float32), 
-                       target_policies[ix:ix+k_unroll_steps], 
-                       torch.tensor(final_outcomes[ix:ix+k_unroll_steps], dtype=torch.float32))
+            # targets = (torch.tensor(rewards[ix:ix+k_unroll_steps], dtype=torch.float32), 
+            #            target_policies[ix:ix+k_unroll_steps])
+
+
+
             sequence = (inputs, targets)
             batch.append(sequence)
         return batch
@@ -304,19 +318,13 @@ class MuZeroAgent(object):
         return node, search_path, action_history
 
     def backup(self, value, search_path):
-        L = len(search_path)
-        # initialize with value estimate
         G = value
-        # iterate backwards from the leaf node to the root
-        for k in range(L - 1, -1, -1):
-            current_node = search_path[k]
-            if k < L - 1: # when not the leaf node
-                reward = search_path[k+1].R
-                G = reward + self.gamma * G
+        for current_node in reversed(search_path):
             current_player = 0 if self.env.agent_selection == 'player_1' else 1
             current_node.value_sum += G if current_node.current_player == current_player else -G
             current_node.N += 1
             self.update_min_max_Q(current_node.mean_value())
+            G = current_node.R + self.gamma * G
         pass
 
     def select_action(self, node):
@@ -358,15 +366,12 @@ class MuZeroAgent(object):
                 self.backup(value, search_path)
         return self.select_action(root_node)
 
-    def experience(self, observation, player_turn, action, immediate_reward, final_outcome, terminal):
-        if not terminal:
-            obs = self.preprocess_obs(observation)
-            self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, immediate_reward)
-        else:
+    def experience(self, observation, player_turn, action, reward, terminal):
+        obs = self.preprocess_obs(observation)
+        self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, reward)
+        if terminal:
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
-            # TODO: +/- based on player_turn
-            # TODO: maybe with a discount factor???
-            self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]
+            # self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]
             self.replay_buffer.store_trajectory()
         pass
 
