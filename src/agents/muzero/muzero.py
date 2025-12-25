@@ -503,7 +503,7 @@ class MuZeroAgent(object):
                     # for i, pred in enumerate(predictions):
                     for i in range(len(targets[0])):
                         policy_logits, predicted_reward, value = predictions[i]
-                        target_policy, u, target_value = torch.tensor(targets[i][0]), torch.tensor([targets[i][1]],dtype=torch.float32), torch.tensor([targets[i][2]],dtype=torch.float32)
+                        target_policy, u, target_value = targets[i][0], torch.tensor([targets[i][1]],dtype=torch.float32), torch.tensor([targets[i][2]],dtype=torch.float32)
                         print(target_policy)
                         print(u)
                         print(target_value)
