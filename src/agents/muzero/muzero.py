@@ -370,25 +370,16 @@ class MuZeroAgent(object):
         c1 = 1.25
         c2 = 19652
         N = node.N
-        
-        # Calculate Q(s, a) - Expected return
         if N > 0:
             Q = node.mean_value()
-            # Normalize Q-value to [0, 1]
             if self.max_Q > self.min_Q:
                 Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
+            Q = node.R + self.gamma * Q 
         else:
             Q = 0
-            
-        # Add immediate reward to the normalized value estimate
-        # Note: In MuZero, the value used for UCB is often the "Value Score" which combines reward + discounted value
-        value_score = node.R + self.gamma * Q
-        
         P = node.P
         N_sum = sum_visits
-        
-        # UCB Score = Value Score + Prior Score
-        return (value_score + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
+        return (Q + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
 
     def select_child(self, node):
         # parent node visit count is the sum of its children's visit counts.
