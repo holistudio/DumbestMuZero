@@ -5,8 +5,8 @@ import datetime
 import csv
 import os
 
-TRAIN_EPS = 100
-EVAL_EPS = 10
+TRAIN_EPS = 1000
+EVAL_EPS = 50
 
 def eval_agent(rl_agent, train_ep):
     p1_w_l_d = [0, 0, 0]
