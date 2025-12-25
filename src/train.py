@@ -6,7 +6,7 @@ import csv
 import os
 
 TRAIN_EPS = 1000
-EVAL_EPS = 50
+EVAL_EPS = 100
 
 def eval_agent(rl_agent, train_ep):
     p1_w_l_d = [0, 0, 0]
@@ -95,8 +95,8 @@ def eval_agent(rl_agent, train_ep):
 env = tictactoe.env()
 
 config = {
-    'batch_size': 16,
-    'buffer_size': 50,
+    'batch_size': 128,
+    'buffer_size': 500,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 3e-4,
@@ -105,7 +105,7 @@ config = {
     'train_iters': 100,
     'gamma': 1.0, # 0.997,
     'k_unroll_steps': 5,
-    'temperature': 0.0,
+    'temperature': 1.0,
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
@@ -144,7 +144,7 @@ for ep in range(TRAIN_EPS):
 
     agent1.update()
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
-    if (ep+1) % 10 == 0:
+    if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS: 
         eval_agent(agent1, ep)
     # pause = input('\npress enter for new game')
 env.close()
