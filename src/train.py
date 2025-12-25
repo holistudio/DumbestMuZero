@@ -92,10 +92,11 @@ config = {
     'hidden_size': 64,
     'lr': 3e-4,
     'weight_decay': 1e-4,
-    'max_iters': 1000,
+    'max_iters': 80,
     'train_iters': 100,
-    'gamma': 0.997,
-    'k_unroll_steps': 5
+    'gamma': 1.0, # 0.997,
+    'k_unroll_steps': 5,
+    'temperature': 0.0,
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
@@ -106,7 +107,7 @@ agents = {
 }
 
 start_time = datetime.datetime.now()
-for ep in range(100):
+for ep in range(1000):
     env.reset(seed=42)
 
     for a in env.agent_iter():
