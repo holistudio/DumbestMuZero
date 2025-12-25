@@ -5,8 +5,29 @@ import datetime
 import csv
 import os
 
+import numpy as np
+
 TRAIN_EPS = 1000
 EVAL_EPS = 100
+
+def preprocess_obs(observation):
+    # pre-process observation dictionary into tensor
+    obs = np.zeros((3,3))
+    current_player_plane = np.array(observation["observation"][:, :, 0])
+    opponent_plane = np.array(observation["observation"][:, :, 1])
+    total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
+
+    # If total pieces is even, it's player 1's turn (current player is p1)
+    # If total pieces is odd, it's player 2's turn (current player is p2)
+    if total_pieces % 2 == 0:
+        p1_plane, p2_plane = current_player_plane, opponent_plane
+    else:
+        p2_plane, p1_plane = current_player_plane, opponent_plane
+
+    p2_plane = p2_plane * 2
+    obs = obs + p1_plane + p2_plane
+    obs = obs.flatten()
+    return obs
 
 def eval_agent(rl_agent, train_ep):
     p1_w_l_d = [0, 0, 0]
