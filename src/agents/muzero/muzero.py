@@ -406,9 +406,15 @@ class MuZeroAgent(object):
         last_node.reward = reward
         last_node.current_player = self.whose_turn(action_history)
 
+        # if legal_actions is empty to avoid a ValueError
+        if not legal_actions:
+            return
+
         # mask illegal actions and normalize the policy over legal moves
         # Use .item() to convert tensor logits to float for math.exp
-        policy = {a: math.exp(policy_logits[a].item()) for a in legal_actions}
+        # Subtract max logit for numerical stability to prevent ZeroDivisionError
+        max_logit = max(policy_logits[a].item() for a in legal_actions)
+        policy = {a: math.exp(policy_logits[a].item() - max_logit) for a in legal_actions}
         policy_sum = sum(policy.values())
         for a in policy.keys():
             last_node.children[a] = Node(policy[a]/policy_sum)
@@ -512,6 +518,12 @@ class MuZeroAgent(object):
             
             for i in range(self.max_iters):
                 last_node, search_path, action_history = self.selection(root_node)
+
+                # Check if node is already expanded (has state) but has no children (terminal/leaf).
+                # This prevents re-expanding terminal nodes and handles the edge case where Root is terminal.
+                if last_node.state is not None:
+                    self.backup(0, search_path, self.whose_turn(action_history))
+                    continue
 
                 parent_node = search_path[-2]
                 latest_action = torch.tensor(action_history[-1], dtype=torch.float32, device=self.device).unsqueeze(0)
