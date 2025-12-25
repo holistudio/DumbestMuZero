@@ -1,5 +1,82 @@
 # DEV LOG
 
+## 2025-12-24
+
+Calling it a night now that I'm confident the code is right and I can leave it to train over night.
+
+Some notes on interesting things that came up as I reviewed and revised the code (a lot):
+
+Ah now I understand `td_steps` being set to `max_moves` for a board game!
+
+In the pseudocode's `make_target()` function:
+
+```python
+      bootstrap_index = current_index + td_steps
+      ...
+      if bootstrap_index < len(self.root_values):
+        value = self.root_values[bootstrap_index] * self.discount**td_steps
+      else:
+        value = 0
+```
+
+Since `td_steps` is set to `9` for tic-tac-toe, `bootstrap_index` is guaranteed to go beyond the end of the game, and value is intialized to 0. THEN the final reward is accounted for at the end of the game:
+
+```python
+      for i, reward in enumerate(self.rewards[current_index:bootstrap_index]):
+        if self.player_history[current_index + i] == current_player:
+          value += reward * self.discount**i  # pytype: disable=unsupported-operands
+        else:
+          value -= reward * self.discount**i
+```
+
+And the signs are flipped appropriately so a player 1 win of +1 gets interpreted as a player 2 loss automatically. This means that the final outcome of the game is effectively accounted for regardless of where the sample trajectory starts (i.e., regardless of the random value of `current_index`)
+
+(DeepMind did not provide this exact code accounting for whether the player's turn at index `i` is the same as `current_player` at `current_index`, I had Gemini look into this and add more if statements and player history tracking.)
+
+Also absorbing states past the end of the game means a uniform policy is added as a target because it doesn't matter (may want to revisit this further but makes sense). DeepMind did it this way:
+
+```python
+# States past the end of games are treated as absorbing states.
+targets.append((0, last_reward, []))
+```
+
+I ended up doing it this way:
+
+```python
+uniform_policy = torch.ones_like(target_policies[0]) / target_policies[0].numel()
+targets.append((uniform_policy, last_reward, 0))
+```
+
+One of my earlier versions of `sample_batch()` makes targets for the neural nets predicting value and reward assuming the "current player" is always the player whose turn it is at the beginning of the trajectory slice (player turn at `sample_trajectory[0]`). Subsequent determinations of the sign of the value/reward (+1/-1) would compare whose turn it is in a future step relative to that "current player." So I set `current_player` outside of the `for i in range(ix, ix+k_unroll_steps+1):` loop
+
+But reviewing this with Gemini, the correct thing is to set "current player" to whose turn it in each future unroll step, inside the `for i in range(ix, ix+k_unroll_steps+1):` loop. Because you actually need to compare the player's turn at future bootstrap index and at timesteps previous to the bootstrap to determine the correct sign.
+
+Gemini explains:
+
+The reason the perspective is based on current_index (the specific step in the unrolled future) rather than state_index (the root of the search) comes down to what the neural network is being trained to predict at each specific step.
+
+Here is the reasoning in terms of the Network and MCTS:
+
+1. The Network's Job is Local to the State
+In MuZero, the training process "unrolls" the network forward in time.
+
+At state_index (step 0), the network sees the root state $S_0$ and predicts Value $V(S_0)$.
+At current_index (step $k$), the network sees a hidden state representing $S_k$ and predicts Value $V(S_k)$.
+In a zero-sum game (like Chess or Go), the standard definition of a state's "Value" is relative to the player whose turn it is in that state.
+
+If it is Player A's turn at $S_k$, a Value of $+1$ means Player A is winning.
+If it is Player B's turn at $S_k$, a Value of $+1$ means Player B is winning (which implies Player A is losing).
+The neural network is designed to be a function $f(s) \rightarrow v$. It doesn't know about the history of who started the search $k$ steps ago; it only knows "I am in this state, it is my turn, how good is this position for me?"
+
+2. Consistency with MCTS (Negamax)
+The MCTS algorithm typically uses a "Negamax" backup strategy for zero-sum games.
+
+When the search tree reaches a leaf node (corresponding to current_index), the network returns a value $v$.
+The MCTS algorithm assumes this $v$ is good for the player at that leaf node.
+When backing up to the parent node (where it was the opponent's turn), MCTS flips the sign ($-v$).
+If you trained the network using the perspective of state_index (the root player), then when the unroll reaches a state where it is the opponent's turn, the network would be trained to predict the root player's value (e.g., "I am Player B, but the value is -1 because Player A is winning"). This would break the Negamax assumption in MCTS, which expects the value to be positive if the current player (Player B) is winning.
+
+
 ## 2025-12-23
 
 Slowly making my way through the TODOs I wrote yesterday. Going to call it a night but one other major thought bubble is I will probably resort to some vibe-coding JUST to help debug:
@@ -15,7 +92,8 @@ OK now going to just fully read the DeepMind's pseudo-code and take a look at ea
 
 - DM's `Game` class tracks `child_visits` and `root_values`, which are:
   - `child_visits` the *normalized* child visits serving as target policy during training
-  - `root_values` which are then used to derive a target value from discounted rewards/values. A `td_steps` parameter is used to look ahead a limited number of steps when computing the discounted value, necessary for very long games.
+  - `root_values` which are then used to derive a target value from discounted rewards/values
+  - A `td_steps` parameter is used to look ahead a limited number of steps when computing the discounted value, necessary for very long games.
   - Another small-but-big detail is that `Game.make_target()` makes sure to include tuple for the targets for the `Network.initial_inference()`, which doesn't predict a reward value, but the target reward is provided as `last_reward = 0`.
 - DM's `ReplayBuffer.window_size` specifies the number of game trajectories in the buffer.
   - Whem a game trajectory is stored with `ReplayBuffer.save_game()` the older games are popped off once the length of the buffer exceeds `window_size`.
@@ -36,12 +114,13 @@ OK now going to just fully read the DeepMind's pseudo-code and take a look at ea
 - `train_network()` initializes the networks and Momentum optimizer and includes calls to function that save the network weights over multiple training steps.
 
 Things I want to review and revise carefully:
-- My `ReplayBuffer` stores the `final_outcome` and `reward` two separate lists.
-  - For a board game a single list is all you need and should look something like `[0, 0, 0,...,0,+1,-1]`
-  - This does leave me feeling a little confused about how self-play happens - how do you record the player_2's loss after the player_1 wins?
-  - Looks like DM's pseudocode doesn't show how the target value needs to flip in sign for the opposing player (i.e., `Game.make_target()` is a little incomplete, it does have `to_play` as an input parameter, but doesn't make use of it. this function should check if the player at `state_index` is different from the player at `bootstrap_index` and flip the sign)
-- My current code doesn't yet discount the rewards and values when computing target values. Even though I am only interested in getting things working for tic-tac-toe with a max of 9 steps per game, this seems like a useful thing to compute should I ever extend this to other games.
-- I *think* that the reason my current `predictions` and `targets` lists are different lengths is because I do NOT include the target for the initial inference...
+- [x] My `ReplayBuffer` stores the `final_outcome` and `reward` two separate lists.
+  - [x] For a board game a single list is all you need and should look something like `[0, 0, 0,...,0,+1,-1]`
+  - ~~This does leave me feeling a little confused about how self-play happens - how do you record the player_2's loss after the player_1 wins?~~ I'm guessing that so long as I track which player won and then alternate the reward/value signs via NegaMax when sampling targets and tree search backups, this should be OK.
+  - [x] Looks like DM's pseudocode doesn't show how the target value needs to flip in sign for the opposing player (i.e., `Game.make_target()` is a little incomplete, it does have `to_play` as an input parameter, but doesn't make use of it. this function should check if the player at `state_index` is different from the player at `bootstrap_index` and flip the sign).
+- [x] My current code doesn't yet discount the rewards and values when computing target values. Even though I am only interested in getting things working for tic-tac-toe with a max of 9 steps per game, this seems like a useful thing to compute should I ever extend this to other games.
+  - [x]Also look into the value of `td_steps` for board games being set to `max_moves`...So for tic-tac-toe this value is 9...and that means the agent also looks 9 steps ahead, regardless of the state of the board?
+- ~~I *think* that the reason my current `predictions` and `targets` lists are different lengths is because I do NOT include the target for the initial inference...~~ after revising `sample_batch()` the predictions and targets are the same length
 - [x] Ensure the buffer length remains under a specified `buffer_size`
 - Softmax temperature sampling and Dirichlet noise seem like overkill when I just want to get MuZero to play tic-tac-toe BUT could still be necessary ways to encourage exploration during training, generating more diverse data that we now really need since we are using three friggin' neural nets...
 - [x] Double check my `pUCT()` function and see how to implement `value_score = child.reward + config.discount * min_max_stats.normalize(child.value())` using my own class definitions. 
@@ -51,9 +130,9 @@ Things I want to review and revise carefully:
 - [x] In conjunction with the above, the `search()` function may need to be revised in a couple ways:
   - [x] After the root node is created with a hidden state, there shouldn't be a `backup()`...
   - [x] the `backup()` should account for the latest leaf node's `current_player` (found via the `whose_turn(action_history)`) and flip the signs of the value accordingly
-- add training loop to `update()` function so that the networks train over multiple epochs / multiple batches.
+- [x] add training loop to `update()` function so that the networks train over multiple epochs / multiple batches.
 - consider switching to the MomentumOptimizer...
-- I sorta think I have to now set up a self-play muzero training loop, and write a separate evaluation function that pits MuZeroAgent against random agent as player 1 or player 2 and see the win-loss-draw proportions.
+- [x] I sorta think I have to now set up a self-play muzero training loop, and write a separate evaluation function that pits MuZeroAgent against random agent as player 1 or player 2 and see the win-loss-draw proportions.
 
 
 
