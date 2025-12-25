@@ -3,7 +3,9 @@ from agents.muzero.muzero import MuZeroAgent
 
 import datetime
 import csv
+import json
 import os
+import copy
 
 import numpy as np
 
@@ -27,7 +29,11 @@ def preprocess_obs(observation):
     p2_plane = p2_plane * 2
     obs = obs + p1_plane + p2_plane
     obs = obs.flatten()
-    return obs
+
+    obs_str = ''
+    for o in obs:
+        obs_str += str(int(o))
+    return obs_str
 
 def eval_agent(rl_agent, train_ep):
     p1_w_l_d = [0, 0, 0]
@@ -136,6 +142,10 @@ agents = {
     'player_2': agent1
 }
 
+state_log = {}
+
+every_ep_log = {}
+
 start_time = datetime.datetime.now()
 for ep in range(TRAIN_EPS):
     env.reset(seed=42)
@@ -143,7 +153,13 @@ for ep in range(TRAIN_EPS):
     for a in env.agent_iter():
         agent = agents[a]
         observation, reward, termination, truncation, info = env.last()
-        
+
+        board_state = preprocess_obs(observation)
+        if board_state in every_ep_log.keys():
+            every_ep_log[board_state] += 1
+        else:
+            every_ep_log[board_state] = 1
+
         if termination or truncation:
             action = None
         else:
@@ -162,10 +178,15 @@ for ep in range(TRAIN_EPS):
         # print(a, len(env.terminations.keys()), env.terminations, env.rewards)
         if len(env.terminations.keys()) == 2:
             agent.experience(observation, a, action, env.rewards[a], env.terminations[a])
-
+        
+        
     agent1.update()
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
     if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS: 
         eval_agent(agent1, ep)
+        state_log[f'{ep-9}-{ep}'] = copy.deepcopy(every_ep_log)
     # pause = input('\npress enter for new game')
 env.close()
+
+with open('board_states_log.json', 'w') as f:
+    json.dump(state_log, f, indent=4)
