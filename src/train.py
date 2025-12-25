@@ -2,9 +2,11 @@ from envs.tictactoe import tictactoe
 from agents.muzero.muzero import MuZeroAgent
 
 import datetime
+import csv
+import os
 
-TRAIN_EPS = 1000
-EVAL_EPS = 50
+TRAIN_EPS = 100
+EVAL_EPS = 10
 
 def eval_agent(rl_agent, train_ep):
     p1_w_l_d = [0, 0, 0]
@@ -80,7 +82,14 @@ def eval_agent(rl_agent, train_ep):
     p2_w_perc = p2_w_l_d[0] * 100 / sum(p2_w_l_d)
 
     print(f'EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}%, {p1_w_l_d}, as P2: {p2_w_perc:.2f}%, {p2_w_l_d}')
-    pass
+    
+    csv_filename = 'agent_performance.csv'
+    file_exists = os.path.isfile(csv_filename)
+    with open(csv_filename, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        if not file_exists:
+            writer.writerow(['train_ep', 'p1_win', 'p1_loss', 'p1_draw', 'p2_win', 'p2_loss', 'p2_draw'])
+        writer.writerow([train_ep] + p1_w_l_d + p2_w_l_d)
 
 # env = tictactoe.env(render_mode="human")
 env = tictactoe.env()
@@ -139,4 +148,3 @@ for ep in range(TRAIN_EPS):
         eval_agent(agent1, ep)
     # pause = input('\npress enter for new game')
 env.close()
-
