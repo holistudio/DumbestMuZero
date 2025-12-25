@@ -162,7 +162,8 @@ class ReplayBuffer(object):
 
         num_eps = len(self.buffer)
         for b in range(self.batch_size):
-            random_ep = self.buffer[random.randint(num_eps // 2, num_eps-1)]  # TODO: look into this "front-half-most-recent games" buffer lookup...
+            random_ep = self.buffer[random.randint(num_eps, num_eps-1)]  
+            # random_ep = self.buffer[random.randint(num_eps // 2, num_eps-1)]  # TODO: look into this "front-half-most-recent games" buffer lookup...
             observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
             rewards, target_policies, root_values = random_ep['rewards'], random_ep['target_policies'], random_ep['root_values']
             print(f'TRAJECTORY')
@@ -170,10 +171,7 @@ class ReplayBuffer(object):
             print(f'actions: {actions}')
             print(f'rewards: {rewards}')
             
-            # k_unroll_steps, capped k steps in trajectory for training
-            # ix = random.randint(0, len(root_values) - k_unroll_steps -1)
-            ix=1
-            
+            ix = random.randint(0, len(root_values) - k_unroll_steps -1)
             print(f'ix: {ix}')
 
             td_steps = len(root_values) - ix
@@ -181,11 +179,6 @@ class ReplayBuffer(object):
 
             inputs = (observations[ix:ix+k_unroll_steps], player_turns[ix:ix+k_unroll_steps], actions[ix:ix+k_unroll_steps])
 
-            # TODO: target_value same as final outcome for board games OR discounted from final_outcome based on td_steps
-            # td_steps, n steps into the future for target_value
-            # targets = (torch.tensor(rewards[ix:ix+k_unroll_steps], dtype=torch.float32), 
-            #            target_policies[ix:ix+k_unroll_steps])
-            # TODO: revisit if the player accounting is done correctly
             targets = []
             for i in range(ix, ix+k_unroll_steps+1):
                 if i < len(player_turns):
