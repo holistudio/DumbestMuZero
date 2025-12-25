@@ -153,7 +153,10 @@ class ReplayBuffer(object):
             observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
             rewards, target_policies, root_values = random_ep['rewards'], random_ep['target_policies'], random_ep['root_values']
             
-            ix = random.randint(0, len(root_values) - k_unroll_steps -1)
+            if len(root_values) - k_unroll_steps -1 > 0:
+                ix = random.randint(0, len(root_values) - k_unroll_steps -1)
+            else:
+                ix = 0
 
             td_steps = len(root_values) - ix
 
@@ -287,7 +290,8 @@ class MuZeroAgent(object):
                    os.path.join(base_dir, 'mu_pred_func_params.pth.tar'))
         torch.save(self.optimizer.state_dict(), 
                    os.path.join(base_dir, 'mu_optimizer_params.pth.tar'))
-        print("Models and optimizer saved.")
+        # print("Models and optimizer saved.")
+        pass
 
     def load_model(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -308,6 +312,7 @@ class MuZeroAgent(object):
         if os.path.exists(paths['optimizer']):
             self.optimizer.load_state_dict(torch.load(paths['optimizer'], map_location=self.device))
         print("Models and optimizer loaded.")
+        pass
 
     """ENIVORNMENT HELPER FUNCTIONS"""
     def flatten(self, observation_space):
@@ -638,4 +643,7 @@ class MuZeroAgent(object):
             self.state_function.eval()
             self.dynamics_function.eval()
             self.prediction_function.eval()
+
+            self.save_model()
             # pause=input('done update()\n')
+            pass
