@@ -1,3 +1,4 @@
 # torch # see https://pytorch.org/get-started/locally/
 # torchvision
 pettingzoo[classic]
+matplotlib
