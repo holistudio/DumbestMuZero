@@ -470,7 +470,7 @@ class MuZeroAgent(object):
             G = current_node.R + self.gamma * G
         pass
 
-    def select_action(self, node):
+    def select_action(self, node, temperature):
         # Sample action based on visit counts and temperature
         sum_visits = node.N
         self.action_probs = torch.zeros(self.action_size)
@@ -483,7 +483,7 @@ class MuZeroAgent(object):
             actions.append(a)
             self.action_probs[a] = child_node.N / sum_visits
 
-        if self.temperature == 0:
+        if temperature == 0:
             # Greedy selection (argmax)
             max_visits = -1
             best_action = None
@@ -496,14 +496,14 @@ class MuZeroAgent(object):
             # Softmax sampling with temperature
             # P(a) = (N(a)^(1/T)) / Sum(N(b)^(1/T))
             visits_tensor = torch.tensor(visits, dtype=torch.float32)
-            scaled_visits = visits_tensor.pow(1.0 / self.temperature)
+            scaled_visits = visits_tensor.pow(1.0 / temperature)
             probs = scaled_visits / scaled_visits.sum()
             
             # Sample from the distribution
             action_idx = torch.multinomial(probs, 1).item()
             return actions[action_idx]
 
-    def search(self, obs):
+    def search(self, obs, temperature):
         # print('search()')
         with torch.no_grad():
             root_node = Node(0)
@@ -565,8 +565,8 @@ class MuZeroAgent(object):
             
             # Store the mean value of the root, not the sum
             self.root_value = root_node.mean_value()
-            
-        return self.select_action(root_node)
+
+        return self.select_action(root_node, temperature)
 
     def experience(self, observation, player_label, action, reward, terminal):
         obs = self.preprocess_obs(observation)
@@ -580,7 +580,7 @@ class MuZeroAgent(object):
 
     def step(self, observation):
         obs = self.preprocess_obs(observation)
-        action = self.search(obs)
+        action = self.search(obs, self.temperature)
         return action
     
     def act(self, observation):
@@ -590,7 +590,7 @@ class MuZeroAgent(object):
         self.prediction_function.eval()
         
         obs = self.preprocess_obs(observation)
-        action = self.search(obs)
+        action = self.search(obs, 0.0)
         return action
 
     def scale_gradient(self, tensor, scale):
