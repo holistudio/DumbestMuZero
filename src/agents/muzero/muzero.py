@@ -259,6 +259,7 @@ class MuZeroAgent(object):
 
         self.root_value = 0
         self.action_probs = torch.zeros(self.action_size)
+        self.temperature = config['temperature']
 
 
         self.state_function.eval()
@@ -415,7 +416,7 @@ class MuZeroAgent(object):
             G = current_node.R + self.gamma * G
         pass
 
-    def select_action(self, node, temperature=1.0):
+    def select_action(self, node):
         # Sample action based on visit counts and temperature
         sum_visits = node.N
         self.action_probs = torch.zeros(self.action_size)
@@ -428,7 +429,7 @@ class MuZeroAgent(object):
             actions.append(a)
             self.action_probs[a] = child_node.N / sum_visits
 
-        if temperature == 0:
+        if self.temperature == 0:
             # Greedy selection (argmax)
             max_visits = -1
             best_action = None
@@ -441,7 +442,7 @@ class MuZeroAgent(object):
             # Softmax sampling with temperature
             # P(a) = (N(a)^(1/T)) / Sum(N(b)^(1/T))
             visits_tensor = torch.tensor(visits, dtype=torch.float32)
-            scaled_visits = visits_tensor.pow(1.0 / temperature)
+            scaled_visits = visits_tensor.pow(1.0 / self.temperature)
             probs = scaled_visits / scaled_visits.sum()
             
             # Sample from the distribution
@@ -505,7 +506,7 @@ class MuZeroAgent(object):
             # Store the mean value of the root, not the sum
             self.root_value = root_node.mean_value()
             
-        return self.select_action(root_node, temperature=1.0)
+        return self.select_action(root_node)
 
     def experience(self, observation, player_label, action, reward, terminal):
         obs = self.preprocess_obs(observation)
