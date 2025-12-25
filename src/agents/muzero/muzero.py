@@ -213,7 +213,9 @@ class ReplayBuffer(object):
                 if i < len(root_values):
                     targets.append((target_policies[i], last_reward, value))
                 else:
-                    targets.append(([], last_reward, 0))
+                    # Absorbing state: uniform policy
+                    uniform_policy = torch.ones_like(target_policies[0]) / target_policies[0].numel()
+                    targets.append((uniform_policy, last_reward, 0))
             
             sequence = (inputs, targets)
             batch.append(sequence)
@@ -625,7 +627,9 @@ class MuZeroAgent(object):
                     # loss
                     for i, pred in enumerate(predictions):
                         policy_logits, predicted_reward, value = pred
-                        target_policy, u, target_value = targets[i][0].to(self.device), torch.tensor([targets[i][1]],dtype=torch.float32, device=self.device), torch.tensor([targets[i][2]],dtype=torch.float32, device=self.device)
+                        target_policy = targets[i][0].to(self.device)
+                        u = torch.tensor([targets[i][1]],dtype=torch.float32, device=self.device)
+                        target_value = torch.tensor([targets[i][2]],dtype=torch.float32, device=self.device)
 
                         # compare with corresponding
                         # immediate_reward, MSE
