@@ -140,7 +140,7 @@ class ReplayBuffer(object):
         pass
 
     def sample_batch(self, k_unroll_steps, gamma):
-        print('sample_batch()')
+        # print('sample_batch()')
         # return batches of trajectories
         # each of length k_unroll_steps
         batch = []
@@ -213,7 +213,7 @@ class ReplayBuffer(object):
             
             sequence = (inputs, targets)
             batch.append(sequence)
-        pause = input('done sample_batch\n')
+        # pause = input('done sample_batch\n')
         return batch
 
 
@@ -224,6 +224,7 @@ class MuZeroAgent(object):
         self.obs_size = self.observation_space.shape
         self.action_space = environment.action_space('player_1')
         self.action_size = self.action_space.n
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
 
         self.replay_buffer = ReplayBuffer(config['buffer_size'], config['batch_size'])
@@ -241,6 +242,10 @@ class MuZeroAgent(object):
                                                       self.action_size,
                                                       config['hidden_size'])
         
+        self.state_function.to(self.device)
+        self.dynamics_function.to(self.device)
+        self.prediction_function.to(self.device)
+
         all_function_params = (list(self.state_function.parameters()) +
                                list(self.dynamics_function.parameters()) +
                                list(self.prediction_function.parameters()))
@@ -450,11 +455,11 @@ class MuZeroAgent(object):
             return actions[action_idx]
 
     def search(self, obs):
-        print('search()')
+        # print('search()')
         with torch.no_grad():
             root_node = Node(0)
 
-            initial_state = self.state_function(obs)
+            initial_state = self.state_function(obs.to(self.device))
             policy_logits, value = self.prediction_function(initial_state)
 
             action_history = []
@@ -466,12 +471,12 @@ class MuZeroAgent(object):
                 last_node, search_path, action_history = self.selection(root_node)
 
                 parent_node = search_path[-2]
-                latest_action = torch.tensor(action_history[-1], dtype=torch.float32).unsqueeze(0)
+                latest_action = torch.tensor(action_history[-1], dtype=torch.float32, device=self.device).unsqueeze(0)
                 state, reward = self.dynamics_function(parent_node.state, latest_action)
                 policy_logits, value = self.prediction_function(state)
                 
                 legal_actions = self.get_legal_actions(obs, action_history)
-                self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
+                self.expansion(last_node, state, reward.item(), policy_logits, legal_actions, action_history)
                 
                 # --- DEBUG START ---
                 # print(f"\n[DEBUG] Simulation {i+1}/{self.max_iters}")
@@ -493,7 +498,7 @@ class MuZeroAgent(object):
                 #     self.display_board(temp_board)
                 # --- DEBUG END ---
 
-                self.backup(value, search_path, self.whose_turn(action_history))
+                self.backup(value.item(), search_path, self.whose_turn(action_history))
                 
                 # --- DEBUG START ---
                 # print("Path AFTER Backup:")
@@ -501,7 +506,7 @@ class MuZeroAgent(object):
                 #     print(f"  Depth {depth} | N: {node.N} | V_sum: {float(node.value_sum):.4f} | Mean V: {float(node.mean_value()):.4f}")
                 # --- DEBUG END ---
 
-                pause = input('end of one search simulation\n')
+                # pause = input('end of one search simulation\n')
             
             # Store the mean value of the root, not the sum
             self.root_value = root_node.mean_value()
@@ -537,7 +542,7 @@ class MuZeroAgent(object):
         return tensor * scale + tensor.detach() * (1.0 - scale)
 
     def update(self):
-        print('update()')
+        # print('update()')
         if len(self.replay_buffer.buffer) >= self.buffer_size:
             self.state_function.train()
             self.dynamics_function.train()
@@ -554,15 +559,15 @@ class MuZeroAgent(object):
                     obs, player_turns, actions = inputs
                     
                     # neural nets predict: predicted_reward, policy_logits, predicted_value
-                    state = self.state_function(obs[0])
-                    predicted_reward = torch.tensor(0.0, dtype=torch.float32).unsqueeze(0)
+                    state = self.state_function(obs[0].to(self.device))
+                    predicted_reward = torch.tensor([0.0], dtype=torch.float32, device=self.device)
                     policy_logits, value = self.prediction_function(state)
                     
                     predictions = [(policy_logits, predicted_reward, value)]
 
                     action_history = []
                     for a in actions:
-                        latest_action = torch.tensor(a, dtype=torch.float32).unsqueeze(0)
+                        latest_action = torch.tensor([a], dtype=torch.float32, device=self.device)
                         state, predicted_reward  = self.dynamics_function(state, latest_action)
                         policy_logits, value = self.prediction_function(state)
 
@@ -579,7 +584,7 @@ class MuZeroAgent(object):
                     # loss
                     for i, pred in enumerate(predictions):
                         policy_logits, predicted_reward, value = pred
-                        target_policy, u, target_value = targets[i][0], torch.tensor([targets[i][1]],dtype=torch.float32), torch.tensor([targets[i][2]],dtype=torch.float32)
+                        target_policy, u, target_value = targets[i][0].to(self.device), torch.tensor([targets[i][1]],dtype=torch.float32, device=self.device), torch.tensor([targets[i][2]],dtype=torch.float32, device=self.device)
 
                         # compare with corresponding
                         # immediate_reward, MSE
@@ -597,4 +602,4 @@ class MuZeroAgent(object):
             self.state_function.eval()
             self.dynamics_function.eval()
             self.prediction_function.eval()
-            pause=input('done update()\n')
+            # pause=input('done update()\n')
