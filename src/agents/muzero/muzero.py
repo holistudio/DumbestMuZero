@@ -1,6 +1,7 @@
 import math
 import copy
 import random
+import os
 
 import torch
 import torch.nn as nn
@@ -218,7 +219,7 @@ class ReplayBuffer(object):
 
 
 class MuZeroAgent(object):
-    def __init__(self, environment, config):
+    def __init__(self, environment, config, load=False):
         self.env = environment
         self.observation_space = self.flatten(environment.observation_space('player_1'))
         self.obs_size = self.observation_space.shape
@@ -270,8 +271,43 @@ class MuZeroAgent(object):
         self.state_function.eval()
         self.dynamics_function.eval()
         self.prediction_function.eval()
+
+        if load:
+            self.load_model()
         pass
 
+    def save_model(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        torch.save(self.state_function.state_dict(), 
+                   os.path.join(base_dir, 'mu_state_rep_params.pth.tar'))
+        torch.save(self.dynamics_function.state_dict(), 
+                   os.path.join(base_dir, 'mu_dyn_func_params.pth.tar'))
+        torch.save(self.prediction_function.state_dict(), 
+                   os.path.join(base_dir, 'mu_pred_func_params.pth.tar'))
+        torch.save(self.optimizer.state_dict(), 
+                   os.path.join(base_dir, 'mu_optimizer_params.pth.tar'))
+        print("Models and optimizer saved.")
+
+    def load_model(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        paths = {
+            'state': os.path.join(base_dir, 'mu_state_rep_params.pth.tar'),
+            'dynamics': os.path.join(base_dir, 'mu_dyn_func_params.pth.tar'),
+            'prediction': os.path.join(base_dir, 'mu_pred_func_params.pth.tar'),
+            'optimizer': os.path.join(base_dir, 'mu_optimizer_params.pth.tar')
+        }
+
+        if os.path.exists(paths['state']):
+            self.state_function.load_state_dict(torch.load(paths['state'], map_location=self.device))
+        if os.path.exists(paths['dynamics']):
+            self.dynamics_function.load_state_dict(torch.load(paths['dynamics'], map_location=self.device))
+        if os.path.exists(paths['prediction']):
+            self.prediction_function.load_state_dict(torch.load(paths['prediction'], map_location=self.device))
+        if os.path.exists(paths['optimizer']):
+            self.optimizer.load_state_dict(torch.load(paths['optimizer'], map_location=self.device))
+        print("Models and optimizer loaded.")
 
     """ENIVORNMENT HELPER FUNCTIONS"""
     def flatten(self, observation_space):
