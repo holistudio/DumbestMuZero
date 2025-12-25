@@ -185,6 +185,27 @@ class ReplayBuffer(object):
                 else:
                     last_reward = 0
                 
+                # --- DEBUG DIAGNOSIS START ---
+                # print(f"\n[DEBUG Step {i}] Current Player: {current_player}")
+                # print(f"  Calculated Target Value: {value}")
+                # print(f"  Last Reward (Raw): {last_reward}")
+
+                # if bootstrap_ix < len(root_values):
+                #     b_player = player_turns[bootstrap_ix]
+                #     print(f"  Bootstrap Player (ix={bootstrap_ix}): {b_player}")
+                #     if current_player is not None and b_player != current_player:
+                #         print("  -> Value sign flipped from bootstrap? Yes (Correct for zero-sum)")
+                # else:
+                #     print(f"  Bootstrap Index (ix={bootstrap_ix}) out of bounds (Terminal State). Value set to 0.")
+
+                # if i > 0 and i <= len(rewards):
+                #     prev_player = player_turns[i-1]
+                #     print(f"  Player who generated last_reward (at {i-1}): {prev_player}")
+                #     if current_player is not None and prev_player != current_player:
+                #         print(f"  -> Perspective Switch: Yes. Prev ({prev_player}) vs Curr ({current_player})")
+                #         print(f"  -> If raw reward is {last_reward}, expected target reward for current player is {-last_reward}")
+                # --- DEBUG DIAGNOSIS END ---
+
                 if i < len(root_values):
                     targets.append((target_policies[i], last_reward, value))
                 else:
@@ -256,10 +277,50 @@ class MuZeroAgent(object):
         # pre-process observation dictionary into tensor
         obs = torch.zeros((3,3), dtype=torch.float32)
         current_player_plane = torch.tensor(observation["observation"][:, :, 0])
-        opponent_plane = torch.tensor(observation["observation"][:, :, 1]) * 2
-        obs = obs + current_player_plane + opponent_plane
+        opponent_plane = torch.tensor(observation["observation"][:, :, 1])
+        total_pieces = torch.sum(current_player_plane) + torch.sum(opponent_plane)
+
+        # If total pieces is even, it's player 1's turn (current player is p1)
+        # If total pieces is odd, it's player 2's turn (current player is p2)
+        if total_pieces % 2 == 0:
+            p1_plane, p2_plane = current_player_plane, opponent_plane
+        else:
+            p2_plane, p1_plane = current_player_plane, opponent_plane
+
+        p2_plane = p2_plane * 2
+        obs = obs + p1_plane + p2_plane
         obs = obs.reshape((9,1)).squeeze()
         return obs
+    
+    def display_board(self, obs):
+    
+        """
+        Display the board to the terminal
+        """
+
+        board = [
+                [" "," "," "],
+                [" "," "," "],
+                [" "," "," "]]
+        
+        obs_grid = obs.reshape(3, 3)
+
+        for i in range(3):
+            for j in range(3):
+                if obs_grid[i, j] == 1:
+                    board[j][i] = "X"
+                elif obs_grid[i, j] == 2:
+                    board[j][i] = "O"
+
+        print("BOARD")
+        print("=====")
+        for i,row in enumerate(board):
+            row_disp = ("|").join(row)
+            print(row_disp)
+            if i < 2:
+                print("-----")
+        print("=====")
+        print()
 
     def get_legal_actions(self, temp_board, history):
         temp_board = temp_board.clone()
@@ -367,6 +428,7 @@ class MuZeroAgent(object):
         return best_action
 
     def search(self, obs):
+        print('search()')
         with torch.no_grad():
             root_node = Node(0)
 
@@ -378,7 +440,7 @@ class MuZeroAgent(object):
 
             self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
             
-            for _ in range(self.max_iters):
+            for i in range(self.max_iters):
                 last_node, search_path, action_history = self.selection(root_node)
 
                 parent_node = search_path[-2]
@@ -389,7 +451,35 @@ class MuZeroAgent(object):
                 legal_actions = self.get_legal_actions(obs, action_history)
                 self.expansion(last_node, state, reward, policy_logits, legal_actions, action_history)
                 
+                # --- DEBUG START ---
+                # print(f"\n[DEBUG] Simulation {i+1}/{self.max_iters}")
+                # print(f"Leaf Value (NN): {value.item():.4f}")
+                
+                # temp_board = obs.clone()
+                # # current_agent_idx = 0 if self.env.agent_selection == 'player_1' else 1
+
+                # print("Path BEFORE Backup:")
+                # for depth, node in enumerate(search_path):
+                #     if depth > 0:
+                #         act = action_history[depth-1]
+                #         mover_idx = self.whose_turn(action_history[:depth-1])
+                #         marker = 1 if mover_idx == 0 else 2
+                #         temp_board[int(act)] = marker
+                    
+                #     print(f"  Depth {depth} | Action: {action_history[depth-1] if depth > 0 else 'Root'} | "
+                #           f"N: {node.N} | V_sum: {float(node.value_sum):.4f} | Mean V: {float(node.mean_value()):.4f} | R: {float(node.R):.4f}")
+                #     self.display_board(temp_board)
+                # --- DEBUG END ---
+
                 self.backup(value, search_path, self.whose_turn(action_history))
+                
+                # --- DEBUG START ---
+                # print("Path AFTER Backup:")
+                # for depth, node in enumerate(search_path):
+                #     print(f"  Depth {depth} | N: {node.N} | V_sum: {float(node.value_sum):.4f} | Mean V: {float(node.mean_value()):.4f}")
+                # --- DEBUG END ---
+
+                pause = input('end of one search simulation\n')
             self.root_value = search_path[0].value_sum
         return self.select_action(root_node)
 
@@ -465,8 +555,6 @@ class MuZeroAgent(object):
                     for i, pred in enumerate(predictions):
                         policy_logits, predicted_reward, value = pred
                         target_policy, u, target_value = targets[i][0], torch.tensor([targets[i][1]],dtype=torch.float32), torch.tensor([targets[i][2]],dtype=torch.float32)
-                        # u = u.unsqueeze(0)
-                        # target_value = target_value.unsqueeze(0)
 
                         # compare with corresponding
                         # immediate_reward, MSE
