@@ -3,6 +3,8 @@ from agents.muzero.muzero import MuZeroAgent
 
 import datetime
 
+TRAIN_EPS = 1000
+EVAL_EPS = 50
 
 def eval_agent(rl_agent, train_ep):
     p1_w_l_d = [0, 0, 0]
@@ -14,9 +16,7 @@ def eval_agent(rl_agent, train_ep):
         'player_2': 'random'
     }
 
-    
-
-    for ep in range(10):
+    for ep in range(EVAL_EPS):
         env.reset(seed=42)
         for a in env.agent_iter():
             agent = agents[a]
@@ -49,7 +49,7 @@ def eval_agent(rl_agent, train_ep):
         'player_2': rl_agent
     }
 
-    for ep in range(10):
+    for ep in range(EVAL_EPS):
         env.reset(seed=42)
         for a in env.agent_iter():
             agent = agents[a]
@@ -86,8 +86,8 @@ def eval_agent(rl_agent, train_ep):
 env = tictactoe.env()
 
 config = {
-    'batch_size': 8,
-    'buffer_size': 100,
+    'batch_size': 16,
+    'buffer_size': 50,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 3e-4,
@@ -107,7 +107,7 @@ agents = {
 }
 
 start_time = datetime.datetime.now()
-for ep in range(1000):
+for ep in range(TRAIN_EPS):
     env.reset(seed=42)
 
     for a in env.agent_iter():
@@ -134,8 +134,8 @@ for ep in range(1000):
             agent.experience(observation, a, action, env.rewards[a], env.terminations[a])
 
     agent1.update()
+    print(f'{datetime.datetime.now()-start_time} EP={ep}')
     if (ep+1) % 10 == 0:
-        print(f'{datetime.datetime.now()-start_time} EP={ep}')
         eval_agent(agent1, ep)
     # pause = input('\npress enter for new game')
 env.close()
