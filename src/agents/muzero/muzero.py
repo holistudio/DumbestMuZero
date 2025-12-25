@@ -171,8 +171,9 @@ class ReplayBuffer(object):
             print(f'rewards: {rewards}')
             
             # k_unroll_steps, capped k steps in trajectory for training
-            ix = random.randint(0, len(root_values) - k_unroll_steps -1)
-            current_player = player_turns[ix]
+            # ix = random.randint(0, len(root_values) - k_unroll_steps -1)
+            ix=1
+            
             print(f'ix: {ix}')
 
             td_steps = len(root_values) - ix
@@ -187,27 +188,25 @@ class ReplayBuffer(object):
             # TODO: revisit if the player accounting is done correctly
             targets = []
             for i in range(ix, ix+k_unroll_steps+1):
-                bootstrap_ix = i + td_steps
-                
-                if bootstrap_ix % 2 == 0:
-                    bootstrap_player = 0 # player 1
+                if i < len(player_turns):
+                    current_player = player_turns[i]
                 else:
-                    bootstrap_player = 1 # player 2
-                print(f"bootstrap_ix: {bootstrap_ix}, player={bootstrap_player}")
+                    current_player = None
+
+                # td_steps = len(root_values) - i - 1
+                # print(f'td_steps: {td_steps}')
+                bootstrap_ix = i + td_steps
 
                 if bootstrap_ix < len(root_values):
-                    if current_player == bootstrap_player:
-                        value = root_values[bootstrap_ix] * gamma**td_steps
-                    else:
-                        value = -root_values[bootstrap_ix] * gamma**td_steps
+                    value = root_values[bootstrap_ix] * gamma**td_steps
+                    bootstrap_player = player_turns[bootstrap_ix]
+                    print(f"bootstrap_ix: {bootstrap_ix}, player={bootstrap_player}")
+                    if current_player != bootstrap_player:
+                        value = -value
                 else:
                     value = 0
                 for j, reward in enumerate(rewards[i:bootstrap_ix]):
-                    if j % 2 == 0:
-                        j_player = 0 # player 1
-                    else:
-                        j_player = 1 # player 2
-                    if j_player == current_player:
+                    if player_turns[i+j] == current_player:
                         value += reward * gamma**j
                     else:
                         value -= reward * gamma**j
