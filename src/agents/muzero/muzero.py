@@ -358,7 +358,8 @@ class MuZeroAgent(object):
         last_node.current_player = self.whose_turn(action_history)
 
         # mask illegal actions and normalize the policy over legal moves
-        policy = {a: math.exp(policy_logits[a]) for a in legal_actions}
+        # Use .item() to convert tensor logits to float for math.exp
+        policy = {a: math.exp(policy_logits[a].item()) for a in legal_actions}
         policy_sum = sum(policy.values())
         for a in policy.keys():
             last_node.children[a] = Node(policy[a]/policy_sum)
@@ -369,16 +370,25 @@ class MuZeroAgent(object):
         c1 = 1.25
         c2 = 19652
         N = node.N
+        
+        # Calculate Q(s, a) - Expected return
         if N > 0:
             Q = node.mean_value()
+            # Normalize Q-value to [0, 1]
             if self.max_Q > self.min_Q:
                 Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
-            Q = node.R + self.gamma * Q 
         else:
             Q = 0
+            
+        # Add immediate reward to the normalized value estimate
+        # Note: In MuZero, the value used for UCB is often the "Value Score" which combines reward + discounted value
+        value_score = node.R + self.gamma * Q
+        
         P = node.P
         N_sum = sum_visits
-        return (Q + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
+        
+        # UCB Score = Value Score + Prior Score
+        return (value_score + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
 
     def select_child(self, node):
         # parent node visit count is the sum of its children's visit counts.
@@ -386,6 +396,7 @@ class MuZeroAgent(object):
 
         best_uct = -float('inf')
         best_child = None
+        best_action = None
         for a, child_node in node.children.items():
             uct = self.pUCT(child_node, sum_visits)
             if uct > best_uct:
@@ -413,19 +424,38 @@ class MuZeroAgent(object):
             G = current_node.R + self.gamma * G
         pass
 
-    def select_action(self, node):
-        # TODO: revise this to sample with softmax and temperature
+    def select_action(self, node, temperature=1.0):
+        # Sample action based on visit counts and temperature
         sum_visits = node.N
         self.action_probs = torch.zeros(self.action_size)
-        max_visits = -1
-        best_action = None
+        
+        # Collect visit counts
+        visits = []
+        actions = []
         for a, child_node in node.children.items():
+            visits.append(child_node.N)
+            actions.append(a)
             self.action_probs[a] = child_node.N / sum_visits
-            if child_node.N > max_visits:
-                max_visits = child_node.N
-                best_action = a
-        # print(f"Action Probabilities: {self.action_probs.tolist()}")
-        return best_action
+
+        if temperature == 0:
+            # Greedy selection (argmax)
+            max_visits = -1
+            best_action = None
+            for a, v in zip(actions, visits):
+                if v > max_visits:
+                    max_visits = v
+                    best_action = a
+            return best_action
+        else:
+            # Softmax sampling with temperature
+            # P(a) = (N(a)^(1/T)) / Sum(N(b)^(1/T))
+            visits_tensor = torch.tensor(visits, dtype=torch.float32)
+            scaled_visits = visits_tensor.pow(1.0 / temperature)
+            probs = scaled_visits / scaled_visits.sum()
+            
+            # Sample from the distribution
+            action_idx = torch.multinomial(probs, 1).item()
+            return actions[action_idx]
 
     def search(self, obs):
         print('search()')
@@ -480,8 +510,11 @@ class MuZeroAgent(object):
                 # --- DEBUG END ---
 
                 pause = input('end of one search simulation\n')
-            self.root_value = search_path[0].value_sum
-        return self.select_action(root_node)
+            
+            # Store the mean value of the root, not the sum
+            self.root_value = root_node.mean_value()
+            
+        return self.select_action(root_node, temperature=1.0)
 
     def experience(self, observation, player_label, action, reward, terminal):
         obs = self.preprocess_obs(observation)
