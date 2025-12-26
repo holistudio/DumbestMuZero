@@ -590,7 +590,18 @@ class MuZeroAgent(object):
 
     def step(self, observation):
         obs = self.preprocess_obs(observation)
-        action = self.search(obs, self.temperature)
+        
+        blanks = torch.where(obs == 0)[0].tolist()
+        
+        # simple temperature annealing for tic-tac-toe:
+        # if both players have placed two pieces (5 or fewer blank spaces), 
+        # there is likely a single move to exploit
+        # that is best to block of connect 3 in a row
+        if len(blanks) > 5:
+            action = self.search(obs, self.temperature)
+        else:
+            action = self.search(obs, 0.0)
+
         return action
     
     def act(self, observation):
