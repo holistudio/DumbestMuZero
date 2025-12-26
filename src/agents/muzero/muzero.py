@@ -271,6 +271,7 @@ class MuZeroAgent(object):
         self.root_value = 0
         self.action_probs = torch.zeros(self.action_size)
         self.temperature = config['temperature']
+        self.dirichlet_alpha = config['dirichlet_alpha']
 
 
         self.state_function.eval()
@@ -502,7 +503,14 @@ class MuZeroAgent(object):
             # Sample from the distribution
             action_idx = torch.multinomial(probs, 1).item()
             return actions[action_idx]
-
+        
+    def add_exploration_noise(self, node):
+        root_exploration_fraction = 0.25
+        actions = list(node.children.keys())
+        noise = torch.distributions.Dirichlet(torch.full((len(actions),), self.dirichlet_alpha)).sample()
+        for a, n in zip(actions, noise):
+            node.children[a].P = node.children[a].P * (1 - root_exploration_fraction) + n * root_exploration_fraction
+            
     def search(self, obs, temperature):
         # print('search()')
         with torch.no_grad():
@@ -515,6 +523,8 @@ class MuZeroAgent(object):
             legal_actions = self.get_legal_actions(obs, action_history)
 
             self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
+            
+            self.add_exploration_noise(root_node)
             
             for i in range(self.max_iters):
                 last_node, search_path, action_history = self.selection(root_node)
