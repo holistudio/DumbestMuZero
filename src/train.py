@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-TRAIN_EPS = 1000
+TRAIN_EPS = 1500
 EVAL_EPS = 100
 
 def preprocess_obs(observation):
@@ -133,6 +133,7 @@ config = {
     'gamma': 1.0, # 0.997,
     'k_unroll_steps': 5,
     'temperature': 1.0,
+    'dirichlet_alpha': 0.3
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
@@ -142,7 +143,6 @@ agents = {
     'player_2': agent1
 }
 
-state_log = {}
 
 every_ep_log = {}
 
@@ -184,9 +184,9 @@ for ep in range(TRAIN_EPS):
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
     if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS: 
         eval_agent(agent1, ep)
-        state_log[f'{ep-9}-{ep}'] = copy.deepcopy(every_ep_log)
+        with open(f'board_states_eps{ep-9}-{ep}_log.json', 'w') as f:
+            json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
 
-with open('board_states_log.json', 'w') as f:
-    json.dump(state_log, f, indent=4)
+
