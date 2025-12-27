@@ -1,5 +1,135 @@
 # DEV LOG
 
+## 2025-12-27
+
+As of this morning, the latest training results look like this: Basically when MuZero plays against a random agent in tic-tac-toe, it wins around 50-70% of the time as player 1 and wins around 30-45% of the time as player 2.
+
+<img src="img/251227_latest.png">
+
+The above is after training for 5000 games of MuZero self-play with the following config/hyperparameters:
+
+```python
+config = {
+    'batch_size': 128,
+    'buffer_size': 2000,
+    'state_size': 16,
+    'hidden_size': 64,
+    'lr': 3e-4,
+    'weight_decay': 1e-4,
+    'max_iters': 80,
+    'train_iters': 100,
+    'gamma': 1.0,
+    'k_unroll_steps': 5,
+    'temperature': 0.5,
+    'dirichlet_alpha': 0.05
+}
+```
+
+I showed both Gemini 3 Thinking Model and Gemini 3 Pro Model the plot and asked for suggestions on what hyperparameters to change.
+
+Gemini Pro suggested the following:
+
+```python
+config = {
+    'batch_size': 128, 
+    'buffer_size': 4000,          # CHANGED: Increased to retain more history (constraint < 5000)
+    'state_size': 16,
+    'hidden_size': 64,
+    'lr': 1e-3,                   # CHANGED: Slightly higher LR for simple dynamics often helps
+    'weight_decay': 1e-4,
+    'max_iters': 50,              # CHANGED: 50 MCTS simulations is plenty for TTT (solves faster)
+    'train_iters': 2,             # CRITICAL FIX: Reduced from 100 to prevent overfitting
+    'gamma': 1.0,                 # Keep 1.0 for Board Games (Win/Loss)
+    'k_unroll_steps': 5,
+    'temperature': 1.0,           # CHANGED: Increased from 0.5 to encourage exploration
+    'dirichlet_alpha': 1.0        # CRITICAL FIX: Increased from 0.05 to ~1.0
+}
+```
+
+Gemini Thinking suggested the following:
+
+```python
+config = {
+    'batch_size': 128,
+    'buffer_size': 2000, 
+    'state_size': 64,         # Increased: More capacity for transitions
+    'hidden_size': 64,
+    'lr': 1e-3,               # Increased: Faster convergence for small game
+    'weight_decay': 1e-4,
+    'max_iters': 50,          # Reduced: 80 is overkill; 50 is plenty for TTT
+    'train_iters': 10,        # Reduced: Prevents overfitting/forgetting
+    'gamma': 0.99,            # Adjusted: Slight decay helps value differentiation
+    'k_unroll_steps': 5,
+    'temperature': 1.0,       # Increased: More diverse action selection
+    'dirichlet_alpha': 1.0    # Increased: Crucial for 9-action exploration
+}
+```
+
+Note that both suggest increasing the dirchlet alpha root exploration noise, which contradicts what Gemini Coding Assist said yesterday!
+
+I asked both Gemini Pro and Gemini Thinking which parameter they thought would be the most significant to change and again they gave somewhat contradictory answers:
+- Gemini Pro pointed to increasing `dirichlet_alpha` to increase exploration, but said that decreasing `train_iters` is a close second.
+- Gemini Thinking pointed to decreasing `train_iters` and pointed to increasing `dirichlet_alpha` as a close second!
+
+So I've tried both. I didn't wait 5000 episodes this time, just checked performance after more than 2000 games (buffer is then full and the networks should be updating). No noticeable improvement.
+
+As of this writing, my latest attempt is this config:
+
+```python
+config = {
+    'batch_size': 128,
+    'buffer_size': 2000,
+    'state_size': 16,
+    'hidden_size': 64,
+    'lr': 1e-3, # decreased just now
+    'weight_decay': 1e-4,
+    'max_iters': 80,
+    'train_iters': 10, # already decreased but no performance gains
+    'gamma': 1.0,
+    'k_unroll_steps': 5,
+    'temperature': 1.0, # increased just now
+    'dirichlet_alpha': 1.0 # already increased but no performance gains
+}
+```
+
+Needless to say, I'm pretty burnt out and I have two competing urges:
+- **Keep going:** This is friggin' tic-tac-toe, this shouldn't be hard (someone even made MuZero for tic-tac-toe [using GOOGLE SHEETS](https://www.youtube.com/watch?v=c8SLNEpFSrs)). My code should be fine I just need to tune hyperparameters.
+- **Move on with my life:** I need to start working on other projects and building other ML-related skills.
+
+I have to draw the line somewhere but I have the following "compromise" in mind:
+
+### Today:
+
+- [ ] Add a "play any model" game loop so that people can try playing the agents in tic-tac-toe themselves
+- [ ] Re-organize code into different folders
+- [ ] Review and add comments
+- [ ] Document whatever I have in the README.
+
+### Potential improvements:
+
+For now assume the code is basically OK. So every night or so, tweak one hyperparameter, let it run overnight and tweak it step by step. **But don't obsess over it the entire day!**
+
+- Add more layers to the neural nets. (may need to decrease learning rate and increase `train_iters`)
+- Increase `max_iters` to `800`. Yes I believe I read the MuZero paper saying 80 simulations. Gemini even said `max_iters=80` is overkill. But my experience with normal MCTS tells me otherwise.
+- Set `k_unroll_steps=9` as this should force MuZero to unroll entire games of tic-tac-toe.
+- Increase `buffer_size=4000` but I think this is the least likely to improve things.
+  - There may need to be a "better-than-random" buffer sampling strategy. Maybe something along the lines of ensuring the sample have 40% winning games, 40% losing games and 20% draws...
+- Maybe don't update after every game once the buffer is full...Only update after every 10 games or so...
+- It's still unclear when I should declare this project "done for now" and write a decent blog post...but I guess it's after trying all of the above and not seeing any improvements. I think I was going into this project hoping for:
+   - ~90% win rate with MuZero as player 1 against random agent
+   - ~10% lose rate with MuZero as player 2 against random agent.
+
+But for now that seems like a stretch goal...
+
+### Future coding ideas:
+
+These will have to be postponed but noted as future work:
+
+- MCTS hyperparameters: C_p and max_iters vs win-rates
+- Code the minimax algorithm for tic-tac-toe
+
+Finally just a quick general reflection that I want to note and expand on in a proper
+
 ## 2025-12-26
 
 Up until now I refused to add the Dirichlet exploration noise to the root node. I thought this seemed very unnecessary since tic-tac-toe is game with such limited action space that surely MuZero would naturally explore all the game spaces anyway...
@@ -66,23 +196,25 @@ Success:
 - Achieve 100% win rate against random agent when MuZero agent is player 1 in tic-tac-toe.
 - Achieve 0% lose rate against random agent when MuZero agent is player 2 in tic-tac-toe.
 
-### Gemini Response
+### Gemini Code Assist Response
 
 buffer_size: 100 -> 400
 
 Reasoning: The original MuZero paper used a replay buffer of 1,000,000 games. While that's for complex games and with vast resources, the principle is to maintain a large and diverse set of past experiences to train on. Increasing the buffer to hold data from 400 games (out of your 500-game training run) will provide more stable and diverse batches for the network, leading to better convergence and preventing the agent from forgetting what it has learned.
 
-train_iters: 10 -> 100
+**train_iters: 10 -> 100**
 
 Reasoning: This is the most critical change. The agent needs to learn more from the games it plays. The original algorithm performs one training step for every N simulation steps. By increasing train_iters, you are allowing the network to train more extensively on the data in the replay buffer after each game. This will significantly speed up learning and help the agent's policy and value predictions converge faster.
 
-max_iters: 80 -> 50
+**max_iters: 80 -> 50**
 
 Reasoning: Tic-Tac-Toe has a very small search space. 80 MCTS simulations per move is more than enough. Reducing this to 50 will speed up the data generation (self-play) phase without a significant drop in playing quality, allowing the agent to complete more games and training cycles in the same amount of time.
-temperature: 1.0 -> 0.5
+
+**temperature: 1.0 -> 0.5**
 
 Reasoning: A lower temperature makes the agent's action selection more greedy, meaning it's more likely to pick the move that the MCTS search identifies as the best. While a temperature of 1.0 encourages exploration, it can lead to too many random moves in a simple game. A value of 0.5 strikes a better balance. Ideally, you would anneal the temperature (start high and lower it over time or after a few moves), but a single lower value is a good first step.
-dirichlet_alpha: 0.3 -> 0.05
+
+**dirichlet_alpha: 0.3 -> 0.05**
 
 Reasoning: The Dirichlet noise is added to the root node during MCTS to encourage exploration of different moves. The original value of 0.3 was used for Go (branching factor >200). For Tic-Tac-Toe (branching factor <=9), this much noise is excessive. Reducing it to a smaller value like 0.05 will ensure the MCTS can focus its search on more promising moves, which is more appropriate for a game with a small action space.
 
