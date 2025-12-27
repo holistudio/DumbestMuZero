@@ -123,17 +123,17 @@ env = tictactoe.env()
 
 config = {
     'batch_size': 128,
-    'buffer_size': 10,
+    'buffer_size': 400,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 3e-4,
     'weight_decay': 1e-4,
     'max_iters': 80,
-    'train_iters': 10,
+    'train_iters': 100,
     'gamma': 1.0,
     'k_unroll_steps': 5,
-    'temperature': 1.0,
-    'dirichlet_alpha': 0.3
+    'temperature': 0.5,
+    'dirichlet_alpha': 0.05
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
