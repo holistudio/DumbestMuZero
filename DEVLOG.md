@@ -1,5 +1,200 @@
 # DEV LOG
 
+## 2025-12-26
+
+Up until now I refused to add the Dirichlet exploration noise to the root node. I thought this seemed very unnecessary since tic-tac-toe is game with such limited action space that surely MuZero would naturally explore all the game spaces anyway...
+
+But to be sure, I tracked the number of unique board states reached in 1000 games of MuZero self-play, before I introduced root exploration noise and after. Looking at the board states in the first 3 moves of the game, impact of exploration noise is apparent:
+
+<img src="img/251226_first_three.png" width="300 px">
+
+Similar effects can be see if you "zoom out" and look at the first 4 moves of the game:
+
+<img src="img/251226_first_half.png" width="300 px">
+
+More importantly, I realized that I am processing each sample within a batch in series and should instead send the entire batch to the neural nets to process in parallel. This speeds up training times significantly.
+
+After a bit more debugging w.r.t. the rewards*, I'm now confident the code is basically correct so it's time to do some hyperparameter tuning in consultation with Gemini Code Assist. 
+
+
+*(Gemini said there needed to be a way to communicate a -1 loss to the opponent player, which I don't think I need to do since there's Negamax, but did it anyways to be on the safe side).
+
+
+### Prompt to Gemini Code Assist
+
+What:
+I am currently training a MuZero agent from scratch to play tic tac toe and so far see very bad performance of the MuZero agent against a random agent
+
+```
+MuZero Agent Performance, as P1: 69.00% win-rate, W-L-D=[69, 23, 8], as P2: 25.00% win-rate, W-L-D=[25, 65, 10]
+```
+
+I am using the following configs:
+
+```python
+config = {
+    'batch_size': 128, # batch size for MuZero neural net training
+    'buffer_size': 100, # number of game episodes in the ReplayBuffer
+    'state_size': 16, # MuZero representation function outputs a 16x1 hidden state representation for the initial 9x1 representation of the tic-tac-toe board
+    'hidden_size': 64, # MLP hidden size
+    'lr': 3e-4, # AdamW optimizer learning rate
+    'weight_decay': 1e-4, # AdamW optimizer weight decay parameter
+    'max_iters': 80, # number of MCTS simulations for each agent step/action
+    'train_iters': 10, # number of training batches per neural net weight updates
+    'gamma': 1.0, # discount factor for reward/returns
+    'k_unroll_steps': 5, # K steps into the future for unrolling game trajectory during batch sample
+    'temperature': 1.0, # softmax temperature for action selection
+    'dirichlet_alpha': 0.3 # exploration noise added to root node's child nodes' priors.
+}
+```
+Please do the following:
+- Look up the MuZero algorithm proposed by DeepMind in their paper and pseudocode, especially in terms of hyperparameters.
+- Suggest changes to the above config for playing a much simpler board game of tic-tac-toe.
+- Consider the smaller scale of tic-tac-toe compared to other board games (max 9 time step per trajectory, a small action space per agent per turn, etc.)
+
+
+Boundaries:
+- DO NOT suggest changes that alter the neural networks proposed in `muzero.py`.
+- Focus on getting MuZero implementation to work for tic-tac-toe. I am not concerned about generalizing this agent to other games.
+- I intend to implement this on a single CUDA-enabled GPU. Do not assume I have vast computing resources of Google/DeepMind.
+- Stick to using PyTorch as the ML library/framework.
+- I expect to train the MuZero agent over 500 games of tic-tac-toe max. Note this is not the same as `train_iters` in the above config.
+- Therefore, you must suggest a `buffer_size` less than 500.
+- DO NOT MODIFY ANY CODE FILES. Only make verbal suggestions.
+
+Success:
+- Achieve 100% win rate against random agent when MuZero agent is player 1 in tic-tac-toe.
+- Achieve 0% lose rate against random agent when MuZero agent is player 2 in tic-tac-toe.
+
+### Gemini Response
+
+buffer_size: 100 -> 400
+
+Reasoning: The original MuZero paper used a replay buffer of 1,000,000 games. While that's for complex games and with vast resources, the principle is to maintain a large and diverse set of past experiences to train on. Increasing the buffer to hold data from 400 games (out of your 500-game training run) will provide more stable and diverse batches for the network, leading to better convergence and preventing the agent from forgetting what it has learned.
+
+train_iters: 10 -> 100
+
+Reasoning: This is the most critical change. The agent needs to learn more from the games it plays. The original algorithm performs one training step for every N simulation steps. By increasing train_iters, you are allowing the network to train more extensively on the data in the replay buffer after each game. This will significantly speed up learning and help the agent's policy and value predictions converge faster.
+
+max_iters: 80 -> 50
+
+Reasoning: Tic-Tac-Toe has a very small search space. 80 MCTS simulations per move is more than enough. Reducing this to 50 will speed up the data generation (self-play) phase without a significant drop in playing quality, allowing the agent to complete more games and training cycles in the same amount of time.
+temperature: 1.0 -> 0.5
+
+Reasoning: A lower temperature makes the agent's action selection more greedy, meaning it's more likely to pick the move that the MCTS search identifies as the best. While a temperature of 1.0 encourages exploration, it can lead to too many random moves in a simple game. A value of 0.5 strikes a better balance. Ideally, you would anneal the temperature (start high and lower it over time or after a few moves), but a single lower value is a good first step.
+dirichlet_alpha: 0.3 -> 0.05
+
+Reasoning: The Dirichlet noise is added to the root node during MCTS to encourage exploration of different moves. The original value of 0.3 was used for Go (branching factor >200). For Tic-Tac-Toe (branching factor <=9), this much noise is excessive. Reducing it to a smaller value like 0.05 will ensure the MCTS can focus its search on more promising moves, which is more appropriate for a game with a small action space.
+
+## 2025-12-25
+
+- [x] Add a log for tracking the unique board states visited every 10 episodes. Are they always the same games?
+- [x] Then add Dirchlet noise to encourage explanation
+   - [x] See the performance. See the state exploration
+- [x] Then add temperature annealing
+
+- [ ] ~~Increase training epochs to 100 per update~~ This can take a while per update depending on the batch size and can lead to overfitting (Note that this is also because the batches are processed in series not in parallel.)
+- [x] Increase learning rate to `1e-3`
+- [ ] Add more layers to the MLPs
+
+
+### My Prompt
+
+I am currently training a MuZero agent from scratch with the following configs:
+
+```python
+config = {
+    'batch_size': 16, # batch size for MuZero neural net training
+    'buffer_size': 10, # number of game episodes in the ReplayBuffer
+    'state_size': 16, # MuZero representation function outputs a 16x1 hidden state representation for the initial 9x1 representation of the tic-tac-toe board
+    'hidden_size': 64, # MLP hidden size
+    'lr': 3e-4, # AdamW optimizer learning rate
+    'weight_decay': 1e-4, # AdamW optimizer weight decay parameters
+    'max_iters': 80, # number of MCTS simulations for each agent step/action
+    'train_iters': 100, # number of training batches per neural net weight updates
+    'gamma': 1.0, # discount factor for reward/returns
+    'k_unroll_steps': 5, # K steps into the future for unrolling game trajectory during batch sample
+    'temperature': 1.0, # softmax temperature for action selection
+}
+```
+
+I have trained the agent for 100 game episodes of self-play. Every 10 episodes, I evaluate the agent's performance by pitting it against a random agent for 100 games where agent is player 1 and 100 games where agent is player 2. The performance at the end of training is bad. Agent Performance, as P1: 44.00% win-rate, W-L-D=[44, 32, 24], as P2: 14.00% win-rate, W-L-D=[14, 59, 27]
+
+Please do the following:
+- Review and survey the most recent research and discussion around MuZero's algorithm.
+- based on that survey, suggest hyperparameter configs that should work better for achieving the best performance results in tic-tac-toe.
+
+Boundaries:
+- For now I still wish to keep using MLP neural nets, since I suspect that for a game like tic-tac-toe, sophisticated ResNets/CNNs and the like are not necessary here.
+- Do NOT modify the code but feel free to give suggestions on where errors in implementation may be.
+- For now, ONLY suggest changes to the above config based on what ML researchers/engineers have observed in terms of MuZero playing board games.
+- Keep in mind that the game is tic-tac-toe. I am not interested in more complicated games. But I do want to ensure optimal performance for this specific game.
+
+Success:
+- Achieve 100% win rates against random agent when MuZero agent is either player 1 or player 2 in tic-tac-toe.
+
+### Gemini Response
+
+#### Analysis of Current Hyperparameters
+
+The most significant issue with your current configuration is likely the extremely small replay buffer.
+
+**buffer_size=10**: A replay buffer of only 10 game episodes is insufficient. The agent is likely overfitting to the most recent, potentially low-quality games it has played. For an agent to learn robust strategies, it needs to sample from a large and diverse set of past experiences.
+
+**train_iters=100**: Training for 100 batches on data from a tiny 10-game buffer will almost certainly lead to catastrophic forgetting and overfitting. The agent is essentially memorizing a very small slice of its own recent, poor-quality play.
+
+**max_iters=80**: 80 MCTS simulations is a reasonable number for Tic-Tac-Toe, perhaps even on the higher side. It should be sufficient for a strong search.
+
+The other parameters are reasonable starting points, but the buffer size and its interaction with training iterations are the most critical problems.
+
+#### Suggested Hyperparameter Changes
+Here is a revised configuration designed to promote stable learning and achieve high performance in Tic-Tac-Toe. The main goal is to significantly increase the experience diversity for the agent.
+
+```python
+config = {
+    # Training
+    'lr': 1e-3,             # Increased learning rate, common for smaller/simpler models.
+    'weight_decay': 1e-4,     # Kept the same, standard value.
+    'batch_size': 128,          # Larger batch size for more stable gradients.
+    'train_iters': 10,          # Fewer training steps per update cycle to prevent overfitting to the current buffer state.
+    
+    # Replay Buffer
+    'buffer_size': 2000,        # A much larger buffer to store a diverse set of games.
+    
+    # MCTS / Action Selection
+    'max_iters': 50,          # Reduced simulations; 80 is likely overkill for Tic-Tac-Toe. 50 is plenty.
+    'gamma': 1.0,             # Correct for deterministic, finite games.
+    'k_unroll_steps': 5,        # 5 is a good number of steps to unroll for learning game dynamics.
+    'temperature': 1.0,         # Keep temperature for exploration during self-play.
+    
+    # Model Architecture
+    'state_size': 32,           # Slightly larger state size for more representational capacity.
+    'hidden_size': 128,         # Larger MLP hidden size to match.
+}
+```
+
+#### Justification for Changes:
+
+Replay Buffer (buffer_size): I've increased this from 10 to 2000. This is the most critical change. A large buffer ensures the agent learns from a wide variety of game trajectories, preventing it from overfitting to its most recent games.
+
+- **Training (lr, batch_size, train_iters):**
+  - I've increased the batch_size to 128 to provide more stable gradient updates.
+  - Consequently, I've reduced train_iters to 10. You want to perform fewer, more stable updates per cycle to avoid overfitting on the samples currently in the buffer. The learning process should be a slow, steady distillation of experience from the large buffer, not a rapid memorization of new games.
+  - I've slightly increased the lr to 1e-3, which can speed up learning for smaller-scale problems like this one, especially when paired with a larger batch size.
+
+- **Model Size (state_size, hidden_size):** I've slightly increased the sizes of the representation and hidden states. While Tic-Tac-Toe is simple, giving the network a bit more capacity (state_size: 32, hidden_size: 128) can help it learn the nuances of the game dynamics, value, and policy more effectively without being excessive.
+- **MCTS (max_iters):** I've reduced the MCTS simulations to 50. For Tic-Tac-Toe, 80 simulations per move is likely more than needed. A value between 30-50 should be sufficient to find the optimal move, and reducing it will speed up self-play, allowing the agent to gather more experience faster.
+
+#### Potential Implementation Notes to Check:
+
+While you asked me not to modify the code,I highly recommend ensuring these two concepts from the AlphaZero/MuZero papers are correctly implemented, as they are crucial for performance:
+
+**Dirichlet Noise:** For effective exploration during self-play, the original papers add Dirichlet noise to the root node's policy distribution during the MCTS search. This forces the agent to explore moves it might otherwise ignore, which is essential for finding new, better strategies. A common value for the alpha parameter is 0.3.
+
+**Temperature Annealing:** While a temperature of 1.0 is good for exploration in the opening moves of a game, it's common practice to anneal (lower) the temperature to near-zero after a certain number of moves (e.g., after 4 moves in Tic-Tac-Toe). This makes the agent pick the best-found move (exploit) for the rest of the game, leading to higher-quality game data being stored in the replay buffer.
+
+With the proposed configuration and a correct implementation, the agent should be able to achieve a dominant win rate against a random opponent.
+
 ## 2025-12-24
 
 Calling it a night now that I'm confident the code is right and I can leave it to train over night.
