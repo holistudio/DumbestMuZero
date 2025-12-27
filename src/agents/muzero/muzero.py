@@ -622,7 +622,9 @@ class MuZeroAgent(object):
     def experience(self, observation, player_label, action, reward, terminal):
         obs = self.preprocess_obs(observation)
         player_turn = 0 if player_label == 'player_1' else 1
-        self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, reward, self.root_value)
+        # If terminal, the value of the state is 0. Using self.root_value would be stale/incorrect.
+        val = 0 if terminal else self.root_value
+        self.replay_buffer.store_step(obs, player_turn, action, self.action_probs, reward, val)
         if terminal:
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
             # self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]

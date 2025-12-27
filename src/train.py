@@ -123,7 +123,7 @@ env = tictactoe.env()
 
 config = {
     'batch_size': 128,
-    'buffer_size': 500,
+    'buffer_size': 10,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 3e-4,
@@ -175,11 +175,44 @@ for ep in range(TRAIN_EPS):
 
         env.step(action)
 
-        # print(a, len(env.terminations.keys()), env.terminations, env.rewards)
-        if len(env.terminations.keys()) == 2:
+        # Check if the game has ended (termination or truncation)
+        if any(env.terminations.values()) or any(env.truncations.values()):
+            # Game Over. We must record the experience for ALL agents to ensure 
+            # the losing agent (who didn't get to act) receives their negative reward.
+            for agent_name in agents.keys():
+                p_agent = agents[agent_name]
+                r = env.rewards[agent_name]
+                t = env.terminations[agent_name]
+                trunc = env.truncations[agent_name]
+                is_terminal = t or trunc
+
+                # Construct observation for the specific agent
+                if agent_name == a:
+                    # This is the agent who just acted (or caused termination)
+                    curr_obs = observation
+                    # Use the action they took. If None (shouldn't happen if they just acted), use 0.
+                    act = action if action is not None else 0
+                else:
+                    # This is the other agent. We need to swap the observation perspective.
+                    # TicTacToe obs is (3,3,2). Channel 0 is self, 1 is opponent.
+                    curr_obs = copy.deepcopy(observation)
+                    p1_plane = curr_obs["observation"][:, :, 0].copy()
+                    p2_plane = curr_obs["observation"][:, :, 1].copy()
+                    curr_obs["observation"][:, :, 0] = p2_plane
+                    curr_obs["observation"][:, :, 1] = p1_plane
+                    
+                    # This agent did not act, so we pass a random placeholder action
+                    # to avoid biasing the dynamics model against a specific move (like 0).
+                    act = env.action_space(agent_name).sample()
+                
+                p_agent.experience(curr_obs, agent_name, act, r, is_terminal)
+            
+            # Break the loop to finish the episode
+            break
+        else:
+            # Game continues. Record experience for the current agent only.
             agent.experience(observation, a, action, env.rewards[a], env.terminations[a])
-        
-        
+
     agent1.update()
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
     if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS: 
@@ -188,5 +221,3 @@ for ep in range(TRAIN_EPS):
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
-
-
