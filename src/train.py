@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-TRAIN_EPS = 1500
+TRAIN_EPS = 500
 EVAL_EPS = 100
 
 def preprocess_obs(observation):
@@ -129,8 +129,8 @@ config = {
     'lr': 3e-4,
     'weight_decay': 1e-4,
     'max_iters': 80,
-    'train_iters': 100,
-    'gamma': 1.0, # 0.997,
+    'train_iters': 10,
+    'gamma': 1.0,
     'k_unroll_steps': 5,
     'temperature': 1.0,
     'dirichlet_alpha': 0.3
