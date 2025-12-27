@@ -218,7 +218,7 @@ for ep in range(TRAIN_EPS):
     
     if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS:
         if ep < config['buffer_size']:
-            if ((ep+1) % 100 == 0):
+            if ((ep+1) % 500 == 0):
                 eval_agent(agent1, ep)
         else: 
             eval_agent(agent1, ep)
