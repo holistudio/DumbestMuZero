@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-TRAIN_EPS = 500
+TRAIN_EPS = 5000
 EVAL_EPS = 100
 
 def preprocess_obs(observation):
@@ -123,7 +123,7 @@ env = tictactoe.env()
 
 config = {
     'batch_size': 128,
-    'buffer_size': 400,
+    'buffer_size': 2000,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 3e-4,
@@ -215,8 +215,13 @@ for ep in range(TRAIN_EPS):
 
     agent1.update()
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
-    if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS: 
-        eval_agent(agent1, ep)
+    
+    if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS:
+        if ep < config['buffer_size']:
+            if ((ep+1) % 100 == 0):
+                eval_agent(agent1, ep)
+        else: 
+            eval_agent(agent1, ep)
         with open(f'board_states_eps{ep-9}-{ep}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
