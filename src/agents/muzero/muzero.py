@@ -33,7 +33,8 @@ class DynamicsFunction(nn.Module):
         pass
 
     def forward(self, s_prev, a):
-        x = torch.cat((s_prev, a))
+        # Concatenate along dimension 1 (features) to support batch processing: (Batch, Hidden) + (Batch, 1)
+        x = torch.cat((s_prev, a), dim=1)
         x = self.lin1(x)
         x = F.gelu(x)
         x = self.lin2(x)
@@ -140,11 +141,14 @@ class ReplayBuffer(object):
         self.reset_trajectory()
         pass
 
-    def sample_batch(self, k_unroll_steps, gamma):
-        # print('sample_batch()')
-        # return batches of trajectories
-        # each of length k_unroll_steps
-        batch = []
+    def sample_batch(self, k_unroll_steps, gamma, device):
+        # Prepare lists to collect batch data
+        obs_batch = []
+        actions_batch = []
+        target_rewards = []
+        target_values = []
+        target_policies_batch = []
+        legal_masks = []
 
         num_eps = len(self.buffer)
         for b in range(self.batch_size):
@@ -160,10 +164,33 @@ class ReplayBuffer(object):
 
             td_steps = len(root_values) - ix
 
-            inputs = (observations[ix:ix+k_unroll_steps], player_turns[ix:ix+k_unroll_steps], actions[ix:ix+k_unroll_steps])
+            # Collect initial observation for this sequence
+            obs_batch.append(observations[ix])
+            
+            # Collect actions for unrolling, padding with random actions if we go past the end of the game
+            current_actions = []
+            for k in range(k_unroll_steps):
+                if ix + k < len(actions):
+                    current_actions.append(actions[ix+k])
+                else:
+                    # Pad with a random valid action index (e.g., 0) for absorbing states
+                    current_actions.append(random.randint(0, len(target_policies[0])-1))
+            actions_batch.append(current_actions)
 
-            targets = []
+            sample_rewards = []
+            sample_values = []
+            sample_policies = []
+            sample_masks = []
+
             for i in range(ix, ix+k_unroll_steps+1):
+                # Pre-compute legal action mask based on recorded observation
+                if i < len(observations):
+                    mask = (observations[i] == 0)
+                else:
+                    # In absorbing state, allow all actions (or mask as needed, but target is uniform)
+                    mask = torch.ones_like(observations[0], dtype=torch.bool)
+                sample_masks.append(mask)
+
                 if i < len(player_turns):
                     current_player = player_turns[i]
                 else:
@@ -174,12 +201,12 @@ class ReplayBuffer(object):
                 if bootstrap_ix < len(root_values):
                     value = root_values[bootstrap_ix] * gamma**td_steps
                     bootstrap_player = player_turns[bootstrap_ix]
-                    if current_player != bootstrap_player:
+                    if current_player is not None and current_player != bootstrap_player:
                         value = -value
                 else:
                     value = 0
                 for j, reward in enumerate(rewards[i:bootstrap_ix]):
-                    if player_turns[i+j] == current_player:
+                    if i+j < len(player_turns) and player_turns[i+j] == current_player:
                         value += reward * gamma**j
                     else:
                         value -= reward * gamma**j
@@ -188,12 +215,14 @@ class ReplayBuffer(object):
                     last_reward = rewards[i-1]
                 else:
                     last_reward = 0
+
+                sample_rewards.append(last_reward)
+                sample_values.append(value)
                 
                 # --- DEBUG DIAGNOSIS START ---
                 # print(f"\n[DEBUG Step {i}] Current Player: {current_player}")
                 # print(f"  Calculated Target Value: {value}")
                 # print(f"  Last Reward (Raw): {last_reward}")
-
                 # if bootstrap_ix < len(root_values):
                 #     b_player = player_turns[bootstrap_ix]
                 #     print(f"  Bootstrap Player (ix={bootstrap_ix}): {b_player}")
@@ -201,7 +230,6 @@ class ReplayBuffer(object):
                 #         print("  -> Value sign flipped from bootstrap? Yes (Correct for zero-sum)")
                 # else:
                 #     print(f"  Bootstrap Index (ix={bootstrap_ix}) out of bounds (Terminal State). Value set to 0.")
-
                 # if i > 0 and i <= len(rewards):
                 #     prev_player = player_turns[i-1]
                 #     print(f"  Player who generated last_reward (at {i-1}): {prev_player}")
@@ -211,16 +239,24 @@ class ReplayBuffer(object):
                 # --- DEBUG DIAGNOSIS END ---
 
                 if i < len(root_values):
-                    targets.append((target_policies[i], last_reward, value))
+                    sample_policies.append(target_policies[i])
                 else:
                     # Absorbing state: uniform policy
                     uniform_policy = torch.ones_like(target_policies[0]) / target_policies[0].numel()
-                    targets.append((uniform_policy, last_reward, 0))
+                    sample_policies.append(uniform_policy)
             
-            sequence = (inputs, targets)
-            batch.append(sequence)
-        # pause = input('done sample_batch\n')
-        return batch
+            target_rewards.append(sample_rewards)
+            target_values.append(sample_values)
+            target_policies_batch.append(torch.stack(sample_policies))
+            legal_masks.append(torch.stack(sample_masks))
+
+        # Stack into tensors and move to device once
+        return (torch.stack(obs_batch).to(device),
+                torch.tensor(actions_batch, dtype=torch.float32).to(device),
+                torch.tensor(target_rewards, dtype=torch.float32).to(device),
+                torch.tensor(target_values, dtype=torch.float32).to(device),
+                torch.stack(target_policies_batch).to(device),
+                torch.stack(legal_masks).to(device))
 
 
 class MuZeroAgent(object):
@@ -411,6 +447,9 @@ class MuZeroAgent(object):
         if not legal_actions:
             return
 
+        # Since networks now process batches, squeeze the batch dimension for single inferences
+        policy_logits = policy_logits.squeeze(0)
+
         # mask illegal actions and normalize the policy over legal moves
         # Use .item() to convert tensor logits to float for math.exp
         # Subtract max logit for numerical stability to prevent ZeroDivisionError
@@ -516,7 +555,8 @@ class MuZeroAgent(object):
         with torch.no_grad():
             root_node = Node(0)
 
-            initial_state = self.state_function(obs.to(self.device))
+            # Unsqueeze to add a batch dimension for network processing
+            initial_state = self.state_function(obs.to(self.device).unsqueeze(0))
             policy_logits, value = self.prediction_function(initial_state)
 
             action_history = []
@@ -536,7 +576,8 @@ class MuZeroAgent(object):
                     continue
 
                 parent_node = search_path[-2]
-                latest_action = torch.tensor(action_history[-1], dtype=torch.float32, device=self.device).unsqueeze(0)
+                # Create a 2D tensor for the action, shape (1, 1), to match batch dimension
+                latest_action = torch.tensor([[action_history[-1]]], dtype=torch.float32, device=self.device)
                 state, reward = self.dynamics_function(parent_node.state, latest_action)
                 policy_logits, value = self.prediction_function(state)
                 
@@ -627,49 +668,56 @@ class MuZeroAgent(object):
             for epoch in range(self.train_iters):
                 loss = 0
                 
-                # load from batch
-                batch = self.replay_buffer.sample_batch(self.k_unroll_steps, self.gamma)
-                for sequence in batch:
-                    inputs, targets = sequence
-
-                    obs, player_turns, actions = inputs
+                # Sample batch as stacked tensors
+                obs_batch, actions_batch, target_rewards_batch, target_values_batch, target_policies_batch, legal_masks_batch = \
+                    self.replay_buffer.sample_batch(self.k_unroll_steps, self.gamma, self.device)
+                
+                # --- Initial Step (Root) ---
+                # Process entire batch of observations at once
+                state = self.state_function(obs_batch)
+                policy_logits, value = self.prediction_function(state)
+                
+                # Calculate loss for step 0
+                t_value = target_values_batch[:, 0].unsqueeze(1)
+                t_policy = target_policies_batch[:, 0]
+                t_reward = target_rewards_batch[:, 0].unsqueeze(1)
+                mask = legal_masks_batch[:, 0]
+                
+                # Mask illegal moves
+                policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
+                
+                # Note: predicted_reward is 0 for initial step (no dynamics yet)
+                pred_reward_0 = torch.zeros_like(t_reward)
+                
+                loss = F.mse_loss(pred_reward_0, t_reward) + \
+                       F.cross_entropy(policy_logits, t_policy) + \
+                       F.mse_loss(value, t_value)
+                
+                gradient_scale = 1.0 / self.k_unroll_steps
+                
+                # --- Unroll Steps ---
+                for k in range(self.k_unroll_steps):
+                    # Get actions for step k for the whole batch: (Batch, 1)
+                    action = actions_batch[:, k].unsqueeze(1)
                     
-                    # neural nets predict: predicted_reward, policy_logits, predicted_value
-                    state = self.state_function(obs[0].to(self.device))
-                    predicted_reward = torch.tensor([0.0], dtype=torch.float32, device=self.device)
+                    # Dynamics and Prediction on batch
+                    state, pred_reward = self.dynamics_function(state, action)
                     policy_logits, value = self.prediction_function(state)
                     
-                    predictions = [(policy_logits, predicted_reward, value)]
-
-                    action_history = []
-                    for a in actions:
-                        latest_action = torch.tensor([a], dtype=torch.float32, device=self.device)
-                        state, predicted_reward  = self.dynamics_function(state, latest_action)
-                        policy_logits, value = self.prediction_function(state)
-
-                        legal_actions = self.get_legal_actions(obs[0], action_history)
-                        mask = torch.zeros_like(policy_logits, dtype=torch.bool)
-                        mask[legal_actions] = True
-                        policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
-
-                        state = self.scale_gradient(state, 0.5)
-
-                        predictions.append((policy_logits, predicted_reward, value))
-                        action_history.append(a)
-
-                    # loss
-                    for i, pred in enumerate(predictions):
-                        policy_logits, predicted_reward, value = pred
-                        target_policy = targets[i][0].to(self.device)
-                        u = torch.tensor([targets[i][1]],dtype=torch.float32, device=self.device)
-                        target_value = torch.tensor([targets[i][2]],dtype=torch.float32, device=self.device)
-
-                        # compare with corresponding
-                        # immediate_reward, MSE
-                        # target_policy, cross_entropy
-                        # target_value, MSE
-                        l = F.mse_loss(predicted_reward, u) + F.cross_entropy(policy_logits, target_policy) + F.mse_loss(value, target_value)
-                        loss += self.scale_gradient(l, (1.0 / len(actions)))
+                    state = self.scale_gradient(state, 0.5)
+                    
+                    t_value = target_values_batch[:, k+1].unsqueeze(1)
+                    t_policy = target_policies_batch[:, k+1]
+                    t_reward = target_rewards_batch[:, k+1].unsqueeze(1)
+                    mask = legal_masks_batch[:, k+1]
+                    
+                    policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
+                    
+                    l = F.mse_loss(pred_reward, t_reward) + \
+                        F.cross_entropy(policy_logits, t_policy) + \
+                        F.mse_loss(value, t_value)
+                    
+                    loss += self.scale_gradient(l, gradient_scale)
 
                 self.optimizer.zero_grad()
 
