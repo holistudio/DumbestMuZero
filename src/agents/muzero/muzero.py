@@ -7,7 +7,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+"""NEURAL NETS"""
 class StateFunction(nn.Module):
+    """
+    representation function, h
+    
+    input: observation/state of current environment (tic-tac-toe board)
+    output: hidden representation of initial observation for subsequent MCTS
+    """
     def __init__(self, input_size, output_size, hidden_size):
         super().__init__()
         self.lin1 = nn.Linear(input_size, hidden_size)
@@ -30,6 +38,12 @@ class StateFunction(nn.Module):
         return x
 
 class DynamicsFunction(nn.Module):
+    """
+    dynamics function, g
+    
+    input: hidden state representation, s_t, and candidate action, a
+    output: predict next hidden state, s_t+1, and reward, r_t+1
+    """
     def __init__(self, input_size, output_size, hidden_size):
         super().__init__()
         self.lin1 = nn.Linear(input_size, hidden_size)
@@ -41,7 +55,7 @@ class DynamicsFunction(nn.Module):
         pass
 
     def forward(self, s_prev, a):
-        # Concatenate along dimension 1 (features) to support batch processing: (Batch, Hidden) + (Batch, 1)
+        # concatenate along dimension 1 to support batch processing
         x = torch.cat((s_prev, a), dim=1)
         x = self.lin1(x)
         x = F.gelu(x)
@@ -56,6 +70,12 @@ class DynamicsFunction(nn.Module):
         return s, r
     
 class PredictionFunction(nn.Module):
+    """
+    prediction function, f
+    
+    input: hidden state representation, s_t
+    output: policy logits, p_t, and value, v_t
+    """
     def __init__(self, input_size, output_size, hidden_size):
         super().__init__()
         self.lin1 = nn.Linear(input_size, hidden_size)
@@ -79,29 +99,52 @@ class PredictionFunction(nn.Module):
         v = self.value_head(x)
         return p, v
 
+"""MCTS DATA STRUCTURES"""
 class Node(object):
+    """
+    MCTS node 
+    """
     def __init__(self, prior):
-        self.state = None
-        self.N, self.value_sum = 0, 0
-        self.P = prior
-        self.R = 0
-        self.current_player = -1
+        """
+        prior: initial probability (from the policy network) 
+        of selecting the action that leads to this node from parent node
+        """
+        self.state = None # hidden state representation
+        self.value_sum = 0 # NOT Q-value (see mean_value)
+        self.N = 0 # number of node visits
+        self.P = prior # policy 
+        self.R = 0 # immediate reward
 
+        # track the player whose turn it is at this node
+        # ex: current_player = 0, player X's turn is at this node, player O has already made a move
+        # ex: current_player = 0, player O's turn is at this node, player X has already made a move
+        self.current_player = -1 
+
+        # child nodes
         self.children = {}
         pass
 
     def expanded(self):
+        """
+        check if its a leaf node with no children or not
+        """
         return len(self.children.items()) > 0
     
     def mean_value(self):
+        """
+        return the mean value Q
+        """
         if self.N > 0:
-            return  self.value_sum / self.N
+            return  self.value_sum / self.N # Q-value
         else:
             return 0
 
-"""REPLAY BUFFER"""
-
+"""TRAINING DATA STRUCURES"""
 class ReplayBuffer(object):
+    """
+    replay buffer for storing entire game trajectories
+    and training batch sampling 
+    """
     def __init__(self, buffer_size, batch_size):
         self.batch_size = batch_size
         self.buffer_size = buffer_size
@@ -276,8 +319,11 @@ class ReplayBuffer(object):
                 torch.stack(target_policies_batch).to(device),
                 torch.stack(legal_masks).to(device))
 
-
+"""MUZERO"""
 class MuZeroAgent(object):
+    """
+    MuZero agent class
+    """
     def __init__(self, environment, config, load=False):
         self.env = environment
         self.observation_space = self.flatten(environment.observation_space('player_1'))
@@ -286,10 +332,11 @@ class MuZeroAgent(object):
         self.action_size = self.action_space.n
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-
+        # replay buffer for loading training batch data
         self.replay_buffer = ReplayBuffer(config['buffer_size'], config['batch_size'])
         self.buffer_size = config['buffer_size']
 
+        # neural networks
         self.state_function = StateFunction(self.obs_size[0],
                                             config['state_size'],
                                             config['hidden_size'])
@@ -301,7 +348,7 @@ class MuZeroAgent(object):
         self.prediction_function = PredictionFunction(config['state_size'],
                                                       self.action_size,
                                                       config['hidden_size'])
-        
+        # move to CUDA device, if available
         self.state_function.to(self.device)
         self.dynamics_function.to(self.device)
         self.prediction_function.to(self.device)
@@ -310,7 +357,8 @@ class MuZeroAgent(object):
                                list(self.dynamics_function.parameters()) +
                                list(self.prediction_function.parameters()))
         
-        # three neural nets' weights given to the optimizer
+        # training optimizer with
+        # L2 regularization loss term
         self.optimizer = torch.optim.AdamW(params=all_function_params,
                                            lr=config['lr'],
                                            weight_decay=config['weight_decay'])
@@ -335,8 +383,12 @@ class MuZeroAgent(object):
         if load:
             self.load_model()
         pass
-
+    
+    """model utilities"""
     def save_model(self):
+        """
+        save neural network and optimizer parameters
+        """
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
         torch.save(self.state_function.state_dict(), 
@@ -347,10 +399,16 @@ class MuZeroAgent(object):
                    os.path.join(base_dir, 'mu_pred_func_params.pth.tar'))
         torch.save(self.optimizer.state_dict(), 
                    os.path.join(base_dir, 'mu_optimizer_params.pth.tar'))
+        
         # print("Models and optimizer saved.")
         pass
 
     def load_model(self):
+        """
+        load neural network and optimizer parameters
+        """
+
+        # TODO: allow loading from a specified directory
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
         paths = {
@@ -371,13 +429,22 @@ class MuZeroAgent(object):
         print("Models and optimizer loaded.")
         pass
 
-    """ENIVORNMENT HELPER FUNCTIONS"""
+    """game environment helper functions"""
     def flatten(self, observation_space):
+        """
+        convert observation space
+        """
+        # TODO: move back into init...
+
         H, W, C = observation_space['observation'].shape
         # return observation space as a 1-D vector
         return torch.zeros(H*W)
 
     def preprocess_obs(self, observation):
+        """
+        convert environment observation dictionary 
+        into a torch tensor for neural nets
+        """
         # pre-process observation dictionary into tensor
         obs = torch.zeros((3,3), dtype=torch.float32)
         current_player_plane = torch.tensor(observation["observation"][:, :, 0])
@@ -397,9 +464,8 @@ class MuZeroAgent(object):
         return obs
     
     def display_board(self, obs):
-    
         """
-        Display the board to the terminal
+        display the board to the terminal
         """
 
         board = [
@@ -426,17 +492,26 @@ class MuZeroAgent(object):
         print("=====")
         print()
 
+
+    """MuZero search functions"""
     def get_legal_actions(self, temp_board, history):
+        """
+        given a game board and action history
+        return indices of available legal actions
+        that can be taken
+        """
         temp_board = temp_board.clone()
         if len(history) > 0:
             for a in history:
                 temp_board[a] = -1
         return torch.where(temp_board == 0)[0].tolist()
 
-
     def whose_turn(self, action_history):
-        # based on the environment and action history in simulation
-        # NOT the current player index in the game being played
+        """
+        based on the environment and action history in simulation
+        return the player whose turn it is in simulation
+        (NOT the current player turn in the game being played)
+        """
         if self.env.agent_selection == 'player_1':
             if len(action_history) % 2 == 0:
                 return 0 # player 1's turn
@@ -449,7 +524,9 @@ class MuZeroAgent(object):
                 return 0 # player 1's turn
 
     def update_min_max_Q(self, node_mean_value):
-        # keep track of min Q and max Q over entire tree
+        """
+        keep track of min and max over entire search tree
+        """
         if node_mean_value > self.max_Q:
             self.max_Q = node_mean_value
         elif node_mean_value < self.min_Q:
@@ -457,6 +534,12 @@ class MuZeroAgent(object):
         pass
 
     def expansion(self, last_node, state, reward, policy_logits, legal_actions, action_history):
+        """
+        expansion phase of MuZero search
+        add child nodes to a given leaf node based on legal actions
+        and initialize them with policy priors based on the prediction network
+        """
+
         last_node.state = state
         last_node.reward = reward
         last_node.current_player = self.whose_turn(action_history)
@@ -479,7 +562,14 @@ class MuZeroAgent(object):
         pass
 
     def pUCT(self, node, sum_visits):
-        # refer to Equation 2, Appendix B
+        """
+        upper confidence bound computed for a given candidate action node
+        refer to Equation 2, Appendix B
+
+        sum_visits: total number of visits to the parent node
+        (same as sum of visits across all parent's child nodes)
+        """
+        
         c1 = 1.25
         c2 = 19652
         N = node.N
@@ -495,7 +585,13 @@ class MuZeroAgent(object):
         return (Q + (P*math.sqrt(N_sum)/(1+N))*(c1+math.log((N_sum+c2+1)/c2)))
 
     def select_child(self, node):
-        # parent node visit count is the sum of its children's visit counts.
+        """
+        select the next child node during simulation/search
+
+        (NOT for selecting the next action in the game)
+        """
+        
+        # parent node visits same as sum of visits across all parent's child nodes
         sum_visits = node.N
 
         best_uct = -float('inf')
@@ -510,6 +606,13 @@ class MuZeroAgent(object):
         return best_child, best_action
 
     def selection(self, node):
+        """
+        selection phase of MuZero search
+
+        return:
+        - unexpanded leaf node
+        - latest search path and action history
+        """
         search_path = [node]
         action_history = []
 
@@ -520,6 +623,11 @@ class MuZeroAgent(object):
         return node, search_path, action_history
 
     def backup(self, value, search_path, leaf_player):
+        """
+        backup phase of MuZero search
+        update mean value based on simulated game outcomes 
+        and node visit counts during simulation
+        """
         G = value
         for current_node in reversed(search_path):
             current_node.value_sum += G if current_node.current_player == leaf_player else -G
@@ -529,11 +637,16 @@ class MuZeroAgent(object):
         pass
 
     def select_action(self, node, temperature):
-        # Sample action based on visit counts and temperature
+        """
+        select the next action to take in the game
+        given tree search root node and softmax sampling temperature
+        """
+
+        # sample action based on visit counts and temperature
         sum_visits = node.N
         self.action_probs = torch.zeros(self.action_size)
         
-        # Collect visit counts
+        # account for visit counts for each action
         visits = []
         actions = []
         for a, child_node in node.children.items():
@@ -542,7 +655,7 @@ class MuZeroAgent(object):
             self.action_probs[a] = child_node.N / sum_visits
 
         if temperature == 0:
-            # Greedy selection (argmax)
+            # greedy selection (argmax)
             max_visits = -1
             best_action = None
             for a, v in zip(actions, visits):
@@ -551,17 +664,21 @@ class MuZeroAgent(object):
                     best_action = a
             return best_action
         else:
-            # Softmax sampling with temperature
-            # P(a) = (N(a)^(1/T)) / Sum(N(b)^(1/T))
+            # softmax sampling with temperature
+            # P(a) = (N(a)^(1/T)) / sum(N(b)^(1/T))
             visits_tensor = torch.tensor(visits, dtype=torch.float32)
             scaled_visits = visits_tensor.pow(1.0 / temperature)
             probs = scaled_visits / scaled_visits.sum()
             
-            # Sample from the distribution
+            # sample from multinomial distribution
             action_idx = torch.multinomial(probs, 1).item()
             return actions[action_idx]
         
     def add_exploration_noise(self, node):
+        """
+        add Dirichlet noise to root node's child node policy priors
+        to encourage exploration of different actions during MuZero search/simulation
+        """
         root_exploration_fraction = 0.25
         actions = list(node.children.keys())
         noise = torch.distributions.Dirichlet(torch.full((len(actions),), self.dirichlet_alpha)).sample()
@@ -569,37 +686,65 @@ class MuZeroAgent(object):
             node.children[a].P = node.children[a].P * (1 - root_exploration_fraction) + n * root_exploration_fraction
             
     def search(self, obs, temperature):
+        """
+        overall MuZero search algorithm
+        
+        given:
+        - obs: tensor representation of current game environment observation state
+        - temperature: softmax sampling temperature
+
+        return: next action to play in the game
+        """
         # print('search()')
+
+        # ensure inference mode
         with torch.no_grad():
+            # initialize tree root node
             root_node = Node(0)
 
-            # Unsqueeze to add a batch dimension for network processing
+            # encode observation into a hidden state represnetation
             initial_state = self.state_function(obs.to(self.device).unsqueeze(0))
+
+            # predict initial policy logits and value
             policy_logits, value = self.prediction_function(initial_state)
 
+            # get list of current available legal actions
             action_history = []
             legal_actions = self.get_legal_actions(obs, action_history)
 
+            # expand root node
             self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
             
+            # add exploration noise to root node's children
             self.add_exploration_noise(root_node)
-            
+
             for i in range(self.max_iters):
+                # select leaf node
                 last_node, search_path, action_history = self.selection(root_node)
 
+                # TODO: revisit this
                 # Check if node is already expanded (has state) but has no children (terminal/leaf).
                 # This prevents re-expanding terminal nodes and handles the edge case where Root is terminal.
                 if last_node.state is not None:
                     self.backup(0, search_path, self.whose_turn(action_history))
                     continue
 
+                # get leaf node's parent
                 parent_node = search_path[-2]
-                # Create a 2D tensor for the action, shape (1, 1), to match batch dimension
+
+                # get latest candidate action as a tensor
                 latest_action = torch.tensor([[action_history[-1]]], dtype=torch.float32, device=self.device)
+
+                # dynamics function predicts next state and immediate reward
                 state, reward = self.dynamics_function(parent_node.state, latest_action)
+
+                # prediciton function estimates policy logits and value based on next state
                 policy_logits, value = self.prediction_function(state)
-                
+
+                # get legal actions avalaible at the leaf node given previous actions
                 legal_actions = self.get_legal_actions(obs, action_history)
+
+                # expand leaf node with child nodes for each legal action
                 self.expansion(last_node, state, reward.item(), policy_logits, legal_actions, action_history)
                 
                 # --- DEBUG START ---
@@ -622,6 +767,7 @@ class MuZeroAgent(object):
                 #     self.display_board(temp_board)
                 # --- DEBUG END ---
 
+                # update node mean values back up to the root node
                 self.backup(value.item(), search_path, self.whose_turn(action_history))
                 
                 # --- DEBUG START ---
@@ -632,12 +778,20 @@ class MuZeroAgent(object):
 
                 # pause = input('end of one search simulation\n')
             
-            # Store the mean value of the root, not the sum
+            # store the mean value of the root node
             self.root_value = root_node.mean_value()
 
+        # return the next action based on node visits and softmax sampling temperature
         return self.select_action(root_node, temperature)
+    
+    """RL agent standard functions"""
 
     def experience(self, observation, player_label, action, reward, terminal):
+        """
+        update experience
+        store either recent state-action-reward transition step
+        or entire game trajectory if game is complete
+        """
         obs = self.preprocess_obs(observation)
         player_turn = 0 if player_label == 'player_1' else 1
         # If terminal, the value of the state is 0. Using self.root_value would be stale/incorrect.
@@ -650,6 +804,10 @@ class MuZeroAgent(object):
         pass
 
     def step(self, observation):
+        """
+        select next action to play in the game
+        with softmax temperature sampling
+        """
         obs = self.preprocess_obs(observation)
         
         blanks = torch.where(obs == 0)[0].tolist()
@@ -666,7 +824,13 @@ class MuZeroAgent(object):
         return action
     
     def act(self, observation):
-        # TODO: review if nothing else different from step()
+        """
+        select next action to play in the game
+        with neural nets doing inference 
+        """
+        # TODO: review whether or not nothing else is different from step()
+
+        # neural nets should be in evaluation mode
         self.state_function.eval()
         self.dynamics_function.eval()
         self.prediction_function.eval()
@@ -676,11 +840,20 @@ class MuZeroAgent(object):
         return action
 
     def scale_gradient(self, tensor, scale):
+        """
+        scale gradients for stability during recurrent network training
+        """
         return tensor * scale + tensor.detach() * (1.0 - scale)
 
     def update(self):
+        """
+        update neural network parameters
+        """
         # print('update()')
+
+        # update weights only after replay buffer is full
         if len(self.replay_buffer.buffer) >= self.buffer_size:
+            # set neural nets to training mode
             self.state_function.train()
             self.dynamics_function.train()
             self.prediction_function.train()
@@ -688,67 +861,78 @@ class MuZeroAgent(object):
             for epoch in range(self.train_iters):
                 loss = 0
                 
-                # Sample batch as stacked tensors
+                # sample batch as stacked tensors
                 obs_batch, actions_batch, target_rewards_batch, target_values_batch, target_policies_batch, legal_masks_batch = \
                     self.replay_buffer.sample_batch(self.k_unroll_steps, self.gamma, self.device)
                 
-                # --- Initial Step (Root) ---
-                # Process entire batch of observations at once
+                # process entire batch of observations at once
                 state = self.state_function(obs_batch)
                 policy_logits, value = self.prediction_function(state)
                 
-                # Calculate loss for step 0
+                # get batch targets for step 0
                 t_value = target_values_batch[:, 0].unsqueeze(1)
                 t_policy = target_policies_batch[:, 0]
                 t_reward = target_rewards_batch[:, 0].unsqueeze(1)
                 mask = legal_masks_batch[:, 0]
                 
-                # Mask illegal moves
+                # mask illegal moves from predicted policy 
                 policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
                 
-                # Note: predicted_reward is 0 for initial step (no dynamics yet)
+                # predicted_reward is 0 for initial step (no dynamics yet)
                 pred_reward_0 = torch.zeros_like(t_reward)
                 
+                # compute loss for step 0
                 loss = F.mse_loss(pred_reward_0, t_reward) + \
                        F.cross_entropy(policy_logits, t_policy) + \
                        F.mse_loss(value, t_value)
                 
+                # gradient scale for recurrent backpropagation through time stable training
                 gradient_scale = 1.0 / self.k_unroll_steps
                 
-                # --- Unroll Steps ---
+                # unroll steps
                 for k in range(self.k_unroll_steps):
-                    # Get actions for step k for the whole batch: (Batch, 1)
+                    # get actions for step k for the whole batch: (Batch, 1)
                     action = actions_batch[:, k].unsqueeze(1)
                     
-                    # Dynamics and Prediction on batch
+                    # dynamics and prediction function on batch
                     state, pred_reward = self.dynamics_function(state, action)
                     policy_logits, value = self.prediction_function(state)
                     
+                    # scale hidden state gradient for stability
                     state = self.scale_gradient(state, 0.5)
                     
+                    # get get batch targets
                     t_value = target_values_batch[:, k+1].unsqueeze(1)
                     t_policy = target_policies_batch[:, k+1]
                     t_reward = target_rewards_batch[:, k+1].unsqueeze(1)
                     mask = legal_masks_batch[:, k+1]
                     
+                    # mask illegal moves from predicted policy 
                     policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
                     
+                    # compute loss w.r.t each target and prediction
                     l = F.mse_loss(pred_reward, t_reward) + \
                         F.cross_entropy(policy_logits, t_policy) + \
                         F.mse_loss(value, t_value)
                     
+                    # scale loss for stability
                     loss += self.scale_gradient(l, gradient_scale)
 
                 self.optimizer.zero_grad()
 
+                # backprop
                 loss.backward()
 
+                 # NOTE: AdamW also does L2 regularization via weight decay setting, see above
                 self.optimizer.step()
 
+            # revert neural nets back to evaluation mode
             self.state_function.eval()
             self.dynamics_function.eval()
             self.prediction_function.eval()
 
+            # save neural net and optimizer parameters
             self.save_model()
+
             # pause=input('done update()\n')
             pass
