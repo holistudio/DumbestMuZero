@@ -123,17 +123,17 @@ env = tictactoe.env()
 
 config = {
     'batch_size': 128,
-    'buffer_size': 2000,
+    'buffer_size': 4000,
     'state_size': 16,
     'hidden_size': 64,
-    'lr': 3e-4,
+    'lr': 1e-3,
     'weight_decay': 1e-4,
-    'max_iters': 80,
-    'train_iters': 100,
+    'max_iters': 50,
+    'train_iters': 10,
     'gamma': 1.0,
     'k_unroll_steps': 5,
-    'temperature': 0.5,
-    'dirichlet_alpha': 0.05
+    'temperature': 1.0,
+    'dirichlet_alpha': 1.0
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
@@ -222,7 +222,9 @@ for ep in range(TRAIN_EPS):
                 eval_agent(agent1, ep)
         else: 
             eval_agent(agent1, ep)
-        with open(f'board_states_eps{ep-9}-{ep}_log.json', 'w') as f:
+    
+    if ((ep+1) % 500 == 0) or ep+1 == TRAIN_EPS:
+        with open(f'board_states_eps{ep-499}-{ep}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
