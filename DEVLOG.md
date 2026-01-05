@@ -1,5 +1,34 @@
 # DEV LOG
 
+## 2026-01-05
+
+Took a break from this just to not think about tic-tac-toe for awhile...
+
+Just a recap:
+
+- I tried to make my own implementation of the MuZero RL algorithm from scratch.
+- I've done DRL before this (DQN, PPO with MLP Actor-Critic)
+- I started by reading the paper and thought "Oh wow this sounds relatively simple in terms of how the neural nets relate to each other...except I don't know much about Monte Carlo Tree search."
+- I figured a good goal would be to at least get a working MuZero implementation using MLPs (very simple neural nets) and get it to play TicTacToe very well (likely no need to train for very long or requires a super fancy neural architecture)
+- So then I took a detour and first read about MCTS.
+- Then I implemented a UCT algorithm to play tic-tac-toe. This ended up working very well: I can view how two UCT algorithsm play each other and they always end up blocking each other's potential connect-3 patterns and I can see the UCT value vs child node visits revealing the computations that led to those actions.
+- Then I started a DEVLOG.md to document my journey starting with a diagram I made on MuZero. I figured, "Well now I understand MCTS, so all I need is to work through recombining this with neural nets."
+- It ended up taking awhile especially since I tried to not even look at the pseudocode that DeepMind provided as supplementary material for their paper.
+- Eventually I did look at the pseudo-code and asked an AI coding agent to help review and revise parts of the code.
+- The current status is I think I have a "working" implementation of MuZero, EXCEPT its performance seems to plateau near a 60% win-rate against a random agent when MuZero plays as player 1, and a 70% LOSE rate against a random agent when MuZero plays as player 2.
+- This is the case even after lots of hyperparameter tuning both based on my intuition and with the AI coding agent's help.
+
+Where things are right now, I'm pretty bummed. Looking back to when I got the UCT/MCTS tic-tac-toe agent to work, where it self-plays perfectly blocking, subconsciously I expect the same performance from MuZero...or at least:
+- MuZero as P1 should win ~90% against a random agent (100% not possible because sometimes the games will end in a draw)
+- MuZero as P2 should lose ~0% of the time against a random agent (P2 has disadvantage from winning without the "first-move advantage" but it should be smart enough to draw)
+
+Right now, that's not the case, despite various hyperparameter tuning configurations.
+
+For today I've just done a line-by-line code "review" and added more detailed comments as notes to my future self.
+
+Will try to do a more major retrospective post / README update later this week.
+
+
 ## 2025-12-27
 
 As of this morning, the latest training results look like this: Basically when MuZero plays against a random agent in tic-tac-toe, it wins around 50-70% of the time as player 1 and wins around 30-45% of the time as player 2.
