@@ -9,37 +9,57 @@ import copy
 
 import numpy as np
 
-TRAIN_EPS = 5000
-EVAL_EPS = 100
+TRAIN_EPS = 5000 # number of training self-play games
+EVAL_EPS = 100 # number of games to play against random agent
 
+"""TRAINING HELPER FUNCTIONS"""
 def preprocess_obs(observation):
-    # pre-process observation dictionary into tensor
+    """
+    pre-process observation dictionary into a string for logging purposes
+    """
+    
     obs = np.zeros((3,3))
+
+    # get current and opponent board planes
+    # environment alternates board planes based on whose turn it is
     current_player_plane = np.array(observation["observation"][:, :, 0])
     opponent_plane = np.array(observation["observation"][:, :, 1])
+
     total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
 
-    # If total pieces is even, it's player 1's turn (current player is p1)
-    # If total pieces is odd, it's player 2's turn (current player is p2)
+    # determine if it is player 1's (X) or player 2's (O) turn
+    # if total pieces is even, it's player 1's turn (current player is p1)
+    # if total pieces is odd, it's player 2's turn (current player is p2)
     if total_pieces % 2 == 0:
         p1_plane, p2_plane = current_player_plane, opponent_plane
     else:
         p2_plane, p1_plane = current_player_plane, opponent_plane
 
+    # X pieces = 1
+    # O pieces = 2
+    # blank board spaces = 0
     p2_plane = p2_plane * 2
     obs = obs + p1_plane + p2_plane
     obs = obs.flatten()
 
+    # convert board state into a string
     obs_str = ''
     for o in obs:
         obs_str += str(int(o))
     return obs_str
 
 def eval_agent(rl_agent, train_ep):
+    """
+    evaluate the current agent's performance against a random agent
+    when agent is playing as either player 1 or player 2
+    """
+
     p1_w_l_d = [0, 0, 0]
     p2_w_l_d = [0, 0, 0]
 
+    """RL agent playing as player 1 against random agent"""
     env = tictactoe.env()
+
     agents = {
         'player_1': rl_agent,
         'player_2': 'random'
@@ -53,7 +73,6 @@ def eval_agent(rl_agent, train_ep):
             
             if termination or truncation:
                 action = None
-
             else:
                 mask = observation["action_mask"]
                 if agent == 'random':
@@ -62,8 +81,14 @@ def eval_agent(rl_agent, train_ep):
                     action = agent.act(observation)
 
             env.step(action)
+
+            # when the game is terminated 
+            # and two players are still present in environment's
+            # logging dictionary
             if len(env.terminations.keys()) == 2:
                 if env.terminations[a] == True:
+
+                    # log RL agent's win loss or draw
                     if env.rewards['player_1'] == 1:
                         p1_w_l_d[0] += 1
                     elif env.rewards['player_1'] == -1:
@@ -72,7 +97,10 @@ def eval_agent(rl_agent, train_ep):
                         p1_w_l_d[2] += 1
     env.close()
 
+
+    """RL agent playing as player 2 against random agent"""
     env = tictactoe.env()
+
     agents = {
         'player_1': 'random',
         'player_2': rl_agent
@@ -95,8 +123,14 @@ def eval_agent(rl_agent, train_ep):
                     action = agent.act(observation)
 
             env.step(action)
+
+            # when the game is terminated 
+            # and two players are still present in environment's
+            # logging dictionary
             if len(env.terminations.keys()) == 2:
                 if env.terminations[a] == True:
+
+                    # log RL agent's win loss or draw
                     if env.rewards['player_2'] == 1:
                         p2_w_l_d[0] += 1
                     elif env.rewards['player_2'] == -1:
@@ -105,11 +139,14 @@ def eval_agent(rl_agent, train_ep):
                         p2_w_l_d[2] += 1
     env.close()
 
+    # calculate win percentages
     p1_w_perc = p1_w_l_d[0] * 100 / sum(p1_w_l_d)
     p2_w_perc = p2_w_l_d[0] * 100 / sum(p2_w_l_d)
 
+    # display performance in terminal
     print(f'EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}%, {p1_w_l_d}, as P2: {p2_w_perc:.2f}%, {p2_w_l_d}')
     
+    # log in CSV file
     csv_filename = 'agent_performance.csv'
     file_exists = os.path.isfile(csv_filename)
     with open(csv_filename, mode='a', newline='') as file:
@@ -118,9 +155,13 @@ def eval_agent(rl_agent, train_ep):
             writer.writerow(['train_ep', 'p1_win', 'p1_loss', 'p1_draw', 'p2_win', 'p2_loss', 'p2_draw'])
         writer.writerow([train_ep] + p1_w_l_d + p2_w_l_d)
 
+"""SELF-PLAY TRAINING"""
+
+# initialize game environment
 # env = tictactoe.env(render_mode="human")
 env = tictactoe.env()
 
+# initialize MuZero agent with config
 config = {
     'batch_size': 128,
     'buffer_size': 4000,
@@ -138,12 +179,14 @@ config = {
 
 agent1 = MuZeroAgent(environment=env, config=config)
 
+# self-play
 agents = {
     'player_1': agent1,
     'player_2': agent1
 }
 
-
+# log the cumulative frequency of board states 
+# reached during self-play
 every_ep_log = {}
 
 start_time = datetime.datetime.now()
@@ -175,9 +218,9 @@ for ep in range(TRAIN_EPS):
 
         env.step(action)
 
-        # Check if the game has ended (termination or truncation)
+        # check if the game has ended (termination or truncation)
         if any(env.terminations.values()) or any(env.truncations.values()):
-            # Game Over. We must record the experience for ALL agents to ensure 
+            #  record the experience for ALL agents to ensure 
             # the losing agent (who didn't get to act) receives their negative reward.
             for agent_name in agents.keys():
                 p_agent = agents[agent_name]
@@ -186,33 +229,33 @@ for ep in range(TRAIN_EPS):
                 trunc = env.truncations[agent_name]
                 is_terminal = t or trunc
 
-                # Construct observation for the specific agent
+                # construct observation for the current player agent
                 if agent_name == a:
                     # This is the agent who just acted (or caused termination)
                     curr_obs = observation
                     # Use the action they took. If None (shouldn't happen if they just acted), use 0.
                     act = action if action is not None else 0
                 else:
-                    # This is the other agent. We need to swap the observation perspective.
-                    # TicTacToe obs is (3,3,2). Channel 0 is self, 1 is opponent.
+                    # for the other player agent we need to swap the observation perspective.
                     curr_obs = copy.deepcopy(observation)
                     p1_plane = curr_obs["observation"][:, :, 0].copy()
                     p2_plane = curr_obs["observation"][:, :, 1].copy()
                     curr_obs["observation"][:, :, 0] = p2_plane
                     curr_obs["observation"][:, :, 1] = p1_plane
                     
-                    # This agent did not act, so we pass a random placeholder action
+                    # agent did not act, pass a random placeholder action
                     # to avoid biasing the dynamics model against a specific move (like 0).
                     act = env.action_space(agent_name).sample()
                 
                 p_agent.experience(curr_obs, agent_name, act, r, is_terminal)
             
-            # Break the loop to finish the episode
+            # break the loop to finish the episode
             break
         else:
-            # Game continues. Record experience for the current agent only.
+            # record experience for the current agent
             agent.experience(observation, a, action, env.rewards[a], env.terminations[a])
 
+    # agent neural network updates parameters if replay buffer is full
     agent1.update()
     print(f'{datetime.datetime.now()-start_time} EP={ep}')
     
