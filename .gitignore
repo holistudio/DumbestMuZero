@@ -179,6 +179,8 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# model parameters and results
 src/agents/muzero/mu_dyn_func_params.pth.tar
 src/agents/muzero/mu_optimizer_params.pth.tar
 src/agents/muzero/mu_pred_func_params.pth.tar
@@ -186,3 +188,4 @@ src/agents/muzero/mu_state_rep_params.pth.tar
 src/agent_performance.csv
 /src/agents/muzero/results
 src/board_states_log.json
+/.vscode
