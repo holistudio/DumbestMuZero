@@ -532,7 +532,7 @@ Action Probability 8 = 13.64%
 
 Lots more debugging ahead.
 
-#@ 2025-12-20
+## 2025-12-20
 
 OK, time to make this more real with an actual `MuZeroAgent` class. I've been shying away from doing this until now because I really wanted to focus on the individual functions rather than worry about which variables have to be attributes of which class. But now I do want to start thinking about this more.
 
