@@ -5,12 +5,21 @@ import datetime
 import csv
 import json
 import os
-import copy
+import random
 
 import numpy as np
+import torch
 
-TRAIN_EPS = 5000 # number of training self-play games
-EVAL_EPS = 100 # number of games to play against random agent
+TRAIN_EPS = int(os.getenv("TRAIN_EPS", "100000"))
+EVAL_EPS = int(os.getenv("EVAL_EPS", "100"))
+EVAL_INTERVAL = int(os.getenv("EVAL_INTERVAL", "500"))
+UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", "5"))
+LOG_INTERVAL = int(os.getenv("LOG_INTERVAL", "10"))
+SEED = int(os.getenv("SEED", "42"))
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 """TRAINING HELPER FUNCTIONS"""
 def preprocess_obs(observation):
@@ -66,7 +75,9 @@ def eval_agent(rl_agent, train_ep):
     }
 
     for ep in range(EVAL_EPS):
-        env.reset(seed=42)
+        eval_seed = SEED + 100_000 + ep
+        env.reset(seed=eval_seed)
+        env.action_space('player_2').seed(eval_seed)
         for a in env.agent_iter():
             agent = agents[a]
             observation, reward, termination, truncation, info = env.last()
@@ -107,7 +118,9 @@ def eval_agent(rl_agent, train_ep):
     }
 
     for ep in range(EVAL_EPS):
-        env.reset(seed=42)
+        eval_seed = SEED + 200_000 + ep
+        env.reset(seed=eval_seed)
+        env.action_space('player_1').seed(eval_seed)
         for a in env.agent_iter():
             agent = agents[a]
             observation, reward, termination, truncation, info = env.last()
@@ -139,12 +152,19 @@ def eval_agent(rl_agent, train_ep):
                         p2_w_l_d[2] += 1
     env.close()
 
-    # calculate win percentages
-    p1_w_perc = p1_w_l_d[0] * 100 / sum(p1_w_l_d)
-    p2_w_perc = p2_w_l_d[0] * 100 / sum(p2_w_l_d)
+    total_games = sum(p1_w_l_d) + sum(p2_w_l_d)
+    eval_loss = (p1_w_l_d[1] + p2_w_l_d[1]) / total_games
+    eval_win_rate = (p1_w_l_d[0] + p2_w_l_d[0]) / total_games
+    p1_loss_rate = p1_w_l_d[1] / sum(p1_w_l_d)
+    p2_loss_rate = p2_w_l_d[1] / sum(p2_w_l_d)
 
     # display performance in terminal
-    print(f'EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}%, {p1_w_l_d}, as P2: {p2_w_perc:.2f}%, {p2_w_l_d}')
+    print(
+        f"EVAL  episode={train_ep + 1}/{TRAIN_EPS} "
+        f"loss_rate={eval_loss:.3f} win_rate={eval_win_rate:.3f} "
+        f"P1_loss={p1_loss_rate:.3f} P1_WLD={p1_w_l_d} "
+        f"P2_loss={p2_loss_rate:.3f} P2_WLD={p2_w_l_d}"
+    )
     
     # log in CSV file
     csv_filename = 'agent_performance.csv'
@@ -152,29 +172,85 @@ def eval_agent(rl_agent, train_ep):
     with open(csv_filename, mode='a', newline='') as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(['train_ep', 'p1_win', 'p1_loss', 'p1_draw', 'p2_win', 'p2_loss', 'p2_draw'])
+            writer.writerow([
+                'train_ep',
+                'p1_win', 'p1_loss', 'p1_draw',
+                'p2_win', 'p2_loss', 'p2_draw',
+            ])
         writer.writerow([train_ep] + p1_w_l_d + p2_w_l_d)
+    return {
+        "loss_rate": eval_loss,
+        "win_rate": eval_win_rate,
+        "p1_loss_rate": p1_loss_rate,
+        "p2_loss_rate": p2_loss_rate,
+        "p1_wld": p1_w_l_d,
+        "p2_wld": p2_w_l_d,
+    }
+
+
+def format_duration(duration):
+    total_seconds = max(0, int(duration.total_seconds()))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def progress_message(ep, elapsed, agent, config):
+    completed = ep + 1
+    progress = completed / TRAIN_EPS
+    eta = elapsed * ((1 / progress) - 1)
+    replay_size = len(agent.replay_buffer.buffer)
+    warmup = min(replay_size / agent.min_replay_size, 1.0)
+    loss_text = f"{agent.last_loss:.6f}" if agent.last_loss is not None else "waiting"
+    return (
+        f"TRAIN episode={completed}/{TRAIN_EPS} ({progress:6.2%}) "
+        f"elapsed={format_duration(elapsed)} eta={format_duration(eta)} "
+        f"replay={replay_size}/{config['buffer_size']} warmup={warmup:6.2%} "
+        f"updates={agent.training_steps} train_loss={loss_text}"
+    )
 
 """SELF-PLAY TRAINING"""
 
 # initialize game environment
 # env = tictactoe.env(render_mode="human")
 env = tictactoe.env()
+for index, agent_name in enumerate(env.possible_agents):
+    env.action_space(agent_name).seed(SEED + index)
 
 # initialize MuZero agent with config
 config = {
-    'batch_size': 128,
-    'buffer_size': 4000,
+    'batch_size': int(os.getenv("BATCH_SIZE", "128")),
+    'buffer_size': int(os.getenv("BUFFER_SIZE", "20000")),
+    'min_replay_size': int(os.getenv("MIN_REPLAY_SIZE", "100")),
     'state_size': 16,
     'hidden_size': 64,
     'lr': 1e-3,
     'weight_decay': 1e-4,
-    'max_iters': 50,
-    'train_iters': 10,
+    'max_iters': int(os.getenv("MAX_ITERS", "50")),
+    'train_iters': int(os.getenv("TRAIN_ITERS", "2")),
+    'checkpoint_interval': int(os.getenv("CHECKPOINT_INTERVAL", "100")),
     'gamma': 1.0,
     'k_unroll_steps': 5,
     'temperature': 1.0,
-    'dirichlet_alpha': 1.0
+    # AlphaZero-style temperature schedule keyed on completed self-play games,
+    # scaled to a 100k-episode run: explore at T=1 for the first 60%, then
+    # sharpen (0.5) through 90%, then near-greedy (0.25) for the final 10% so
+    # the policy crystallizes toward minimax as it nears convergence.
+    'temp_schedule': [(60000, 1.0), (90000, 0.5), (10**9, 0.25)],
+    'dirichlet_alpha': float(os.getenv("DIRICHLET_ALPHA", "0.1")),
+    # categorical (distributional) value/reward representation
+    'num_bins': int(os.getenv("NUM_BINS", "51")),
+    'support_limit': float(os.getenv("SUPPORT_LIMIT", "1.0")),
+    'value_transform': os.getenv("VALUE_TRANSFORM", "1") == "1",
+    'value_loss_weight': float(os.getenv("VALUE_LOSS_WEIGHT", "0.25")),
+    # Prioritized Experience Replay: sample positions ~ |value error|^alpha,
+    # correcting the bias with importance-sampling weights ^beta.
+    'PER': os.getenv("PER", "0") == "1",
+    'PER_alpha': float(os.getenv("PER_ALPHA", "0.5")),
+    'PER_beta': float(os.getenv("PER_BETA", "1.0")),
+    # exponential learning-rate decay: lr0 * rate ** (step / steps)
+    'lr_decay_rate': float(os.getenv("LR_DECAY_RATE", "0.1")),
+    'lr_decay_steps': float(os.getenv("LR_DECAY_STEPS", "200000")),
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
@@ -191,7 +267,7 @@ every_ep_log = {}
 
 start_time = datetime.datetime.now()
 for ep in range(TRAIN_EPS):
-    env.reset(seed=42)
+    env.reset(seed=SEED + ep)
 
     for a in env.agent_iter():
         agent = agents[a]
@@ -218,56 +294,36 @@ for ep in range(TRAIN_EPS):
 
         env.step(action)
 
+        # Record exactly one transition for every action that was actually
+        # played. In shared-agent self-play, adding a synthetic losing-player
+        # step would create a bogus action/policy pair and a second trajectory.
+        agent.experience(
+            observation,
+            a,
+            action,
+            env.rewards[a],
+            any(env.terminations.values()) or any(env.truncations.values()),
+        )
+
         # check if the game has ended (termination or truncation)
         if any(env.terminations.values()) or any(env.truncations.values()):
-            #  record the experience for ALL agents to ensure 
-            # the losing agent (who didn't get to act) receives their negative reward.
-            for agent_name in agents.keys():
-                p_agent = agents[agent_name]
-                r = env.rewards[agent_name]
-                t = env.terminations[agent_name]
-                trunc = env.truncations[agent_name]
-                is_terminal = t or trunc
-
-                # construct observation for the current player agent
-                if agent_name == a:
-                    # This is the agent who just acted (or caused termination)
-                    curr_obs = observation
-                    # Use the action they took. If None (shouldn't happen if they just acted), use 0.
-                    act = action if action is not None else 0
-                else:
-                    # for the other player agent we need to swap the observation perspective.
-                    curr_obs = copy.deepcopy(observation)
-                    p1_plane = curr_obs["observation"][:, :, 0].copy()
-                    p2_plane = curr_obs["observation"][:, :, 1].copy()
-                    curr_obs["observation"][:, :, 0] = p2_plane
-                    curr_obs["observation"][:, :, 1] = p1_plane
-                    
-                    # agent did not act, pass a random placeholder action
-                    # to avoid biasing the dynamics model against a specific move (like 0).
-                    act = env.action_space(agent_name).sample()
-                
-                p_agent.experience(curr_obs, agent_name, act, r, is_terminal)
-            
             # break the loop to finish the episode
             break
-        else:
-            # record experience for the current agent
-            agent.experience(observation, a, action, env.rewards[a], env.terminations[a])
 
     # agent neural network updates parameters if replay buffer is full
-    agent1.update()
-    print(f'{datetime.datetime.now()-start_time} EP={ep}')
+    if (ep + 1) % UPDATE_INTERVAL == 0:
+        agent1.update()
+    if (ep + 1) % LOG_INTERVAL == 0 or ep == 0 or ep + 1 == TRAIN_EPS:
+        elapsed = datetime.datetime.now() - start_time
+        print(progress_message(ep, elapsed, agent1, config), flush=True)
     
-    if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS:
-        if ep < config['buffer_size']:
-            if ((ep+1) % 500 == 0):
-                eval_agent(agent1, ep)
-        else: 
-            eval_agent(agent1, ep)
+    if ((ep + 1) % EVAL_INTERVAL == 0) or ep + 1 == TRAIN_EPS:
+        eval_agent(agent1, ep)
     
     if ((ep+1) % 500 == 0) or ep+1 == TRAIN_EPS:
-        with open(f'board_states_eps{ep-499}-{ep}_log.json', 'w') as f:
+        first_logged_ep = max(0, ep - 499)
+        with open(f'board_states_eps{first_logged_ep}-{ep}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
+agent1.save_model()
 env.close()

@@ -1,4 +1,6 @@
-# torch # see https://pytorch.org/get-started/locally/
-# torchvision
+numpy<2
+torch==2.2.2
 pettingzoo[classic]
 matplotlib
+pytest
+hypothesis
