@@ -69,7 +69,10 @@ class UCTAgent(object):
             if n_child == 0:
                 uct_value = float('inf')
             else:
-                exploitation_term = (q/n_child)
+                # Child returns are stored from the child player's
+                # perspective. The parent chooses actions from the opposing
+                # perspective, so negate the child's mean value.
+                exploitation_term = -(q/n_child)
                 exploration_term = 2*self.C_p*np.sqrt(2*np.log(N)/n_child)
                 uct_value = exploitation_term + exploration_term
             if uct_value > max_uct_value:

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from pettingzoo.classic.tictactoe.board import (  # type: ignore
+from envs.tictactoe.board import (
     TTT_GAME_NOT_OVER,
     TTT_PLAYER1_WIN,
     TTT_PLAYER2_WIN,

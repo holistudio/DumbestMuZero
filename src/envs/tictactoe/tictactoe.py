@@ -175,7 +175,11 @@ class raw_env(AECEnv, EzPickle):
 
         # Per the documentation, the mask of any agent other than the
         # currently selected one is all zeros.
-        if agent == self.agent_selection:
+        if (
+            agent == self.agent_selection
+            and not self.terminations[agent]
+            and not self.truncations[agent]
+        ):
             for i in self.board.legal_moves():
                 action_mask[i] = 1
 
@@ -217,37 +221,9 @@ class raw_env(AECEnv, EzPickle):
             self.render()
 
     def outcome(self, observation):
-        """Return +1 if player 1 has won, -1 if player 2 has won, or 0 otherwise."""
-        # The observation for player_1 has player_1 marks in plane 0.
-        # The observation for player_2 has player_2 marks in plane 1.
-        # observation["observation"][:, :, 0] is the current player's marks.
-        # We need a consistent view of the board to check for absolute winner.
-
+        """Return the outcome from the observation's current-player perspective."""
         current_player_plane = observation["observation"][:, :, 0]
         opponent_plane = observation["observation"][:, :, 1]
-        total_pieces = np.sum(current_player_plane) + np.sum(opponent_plane)
-
-        outcome_sign = 1
-        # If total pieces is even, it's player 1's turn (current player is p1)
-        # If total pieces is odd, it's player 2's turn (current player is p2)
-        if total_pieces % 2 == 0:
-            p1_plane, p2_plane = current_player_plane, opponent_plane
-            if self.agent_selection == 'player_1':
-                # if the current player is player_1
-                # and there are even number of pieces,
-                # then this is a view of what player_2 just played
-                # the outcome sign needs to be switched if player_1 wins in this current game state
-                outcome_sign = -1 
-        else:
-            p2_plane, p1_plane = current_player_plane, opponent_plane
-            if self.agent_selection == 'player_2':
-                # if the current player is player_2
-                # and there are odd number of pieces,
-                # then this is a view of what player_1 just played
-                # the outcome sign needs to be switched if player_2 wins in this current game state
-                outcome_sign = -1 
-
-        # p1_plane, p2_plane = current_player_plane, opponent_plane
 
         # winning_combinations are tuples of flat indices
         winning_combinations = [
@@ -257,16 +233,10 @@ class raw_env(AECEnv, EzPickle):
         ]
 
         for combo in winning_combinations:
-            if all(p1_plane.flat[i] == 1 for i in combo):
-                if self.agent_selection == 'player_1':
-                    return 1*outcome_sign
-                else:
-                    return -1*outcome_sign
-            if all(p2_plane.flat[i] == 1 for i in combo):
-                if self.agent_selection == 'player_2':
-                    return 1*outcome_sign 
-                else:
-                    return -1*outcome_sign
+            if all(current_player_plane.flat[i] == 1 for i in combo):
+                return 1
+            if all(opponent_plane.flat[i] == 1 for i in combo):
+                return -1
 
         return 0  # Draw or game not over
     
@@ -310,7 +280,13 @@ class raw_env(AECEnv, EzPickle):
         # Calculate the action mask for the new state.
         occupied_mask = (next_obs_board[:, :, 0] + next_obs_board[:, :, 1]).flatten()
         next_action_mask = 1 - occupied_mask
-        return {"observation": next_obs_board, "action_mask": next_action_mask.astype(np.int8)}
+        next_observation = {
+            "observation": next_obs_board,
+            "action_mask": next_action_mask.astype(np.int8),
+        }
+        if self.check_terminal(next_observation):
+            next_observation["action_mask"][:] = 0
+        return next_observation
 
     def reset(self, seed=None, options=None):
         self.board.reset()

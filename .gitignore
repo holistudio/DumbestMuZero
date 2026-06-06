@@ -188,4 +188,5 @@ src/agents/muzero/mu_state_rep_params.pth.tar
 src/agent_performance.csv
 /src/agents/muzero/results
 src/board_states_log.json
+src/board_states_eps*_log.json
 /.vscode
