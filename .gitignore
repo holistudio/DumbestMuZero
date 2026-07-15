@@ -189,3 +189,4 @@ src/agent_performance.csv
 /src/agents/muzero/results
 src/board_states_log.json
 /.vscode
+/results
