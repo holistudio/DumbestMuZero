@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-TRAIN_EPS = 5000 # number of training self-play games
+TRAIN_EPS = 10_000 # number of training self-play games
 EVAL_EPS = 100 # number of games to play against random agent
 
 """TRAINING HELPER FUNCTIONS"""
