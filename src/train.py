@@ -191,6 +191,7 @@ every_ep_log = {}
 
 start_time = datetime.datetime.now()
 for ep in range(TRAIN_EPS):
+    episode_num = ep + 1  # 1-indexed episode number, used for all EP display/logging
     env.reset(seed=42)
 
     for a in env.agent_iter():
@@ -257,17 +258,23 @@ for ep in range(TRAIN_EPS):
 
     # agent neural network updates parameters if replay buffer is full
     agent1.update()
-    print(f'{datetime.datetime.now()-start_time} EP={ep}')
-    
-    if ((ep+1) % 10 == 0) or ep+1 == TRAIN_EPS:
-        if ep < config['buffer_size']:
-            if ((ep+1) % 500 == 0):
-                eval_agent(agent1, ep)
-        else: 
-            eval_agent(agent1, ep)
-    
-    if ((ep+1) % 500 == 0) or ep+1 == TRAIN_EPS:
-        with open(f'board_states_eps{ep-499}-{ep}_log.json', 'w') as f:
+
+    if episode_num == 1 or episode_num % 100 == 0:
+        elapsed = datetime.datetime.now() - start_time
+        avg_time_per_ep = elapsed / episode_num
+        eta = avg_time_per_ep * (TRAIN_EPS - episode_num)
+        eta_completion = datetime.datetime.now() + eta
+        print(f'EP={episode_num}/{TRAIN_EPS} | Avg/EP: {avg_time_per_ep} | ETA: {eta} (done at {eta_completion.strftime("%Y-%m-%d %H:%M:%S")})')
+
+    if (episode_num % 10 == 0) or episode_num == TRAIN_EPS:
+        if episode_num <= config['buffer_size']:
+            if (episode_num % 500 == 0):
+                eval_agent(agent1, episode_num)
+        else:
+            eval_agent(agent1, episode_num)
+
+    if (episode_num % 500 == 0) or episode_num == TRAIN_EPS:
+        with open(f'board_states_eps{episode_num-499}-{episode_num}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
