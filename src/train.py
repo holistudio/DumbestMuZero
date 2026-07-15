@@ -279,3 +279,8 @@ for ep in range(TRAIN_EPS):
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
+
+# post-hoc timing summary
+total_elapsed = datetime.datetime.now() - start_time
+avg_time_per_ep = total_elapsed / TRAIN_EPS
+print(f'\nDone: {TRAIN_EPS} episodes in {total_elapsed} (avg {avg_time_per_ep} per episode)')
