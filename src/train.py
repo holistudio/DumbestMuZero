@@ -259,7 +259,7 @@ for ep in range(TRAIN_EPS):
     # agent neural network updates parameters if replay buffer is full
     agent1.update()
 
-    if episode_num == 1 or episode_num % 100 == 0:
+    if episode_num == 1 or episode_num % 1000 == 0:
         elapsed = datetime.datetime.now() - start_time
         avg_time_per_ep = elapsed / episode_num
         eta = avg_time_per_ep * (TRAIN_EPS - episode_num)
