@@ -271,7 +271,7 @@ for ep in range(TRAIN_EPS):
             if (episode_num % 1000 == 0):
                 eval_agent(agent1, episode_num)
         else:
-            if (episode_num % 500 == 0):
+            if (episode_num % 1000 == 0):
                 eval_agent(agent1, episode_num)
 
     if (episode_num % 500 == 0) or episode_num == TRAIN_EPS:
