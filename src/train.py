@@ -268,10 +268,11 @@ for ep in range(TRAIN_EPS):
 
     if (episode_num % 10 == 0) or episode_num == TRAIN_EPS:
         if episode_num <= config['buffer_size']:
-            if (episode_num % 500 == 0):
+            if (episode_num % 1000 == 0):
                 eval_agent(agent1, episode_num)
         else:
-            eval_agent(agent1, episode_num)
+            if (episode_num % 500 == 0):
+                eval_agent(agent1, episode_num)
 
     if (episode_num % 500 == 0) or episode_num == TRAIN_EPS:
         with open(f'board_states_eps{episode_num-499}-{episode_num}_log.json', 'w') as f:
