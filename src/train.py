@@ -266,16 +266,11 @@ for ep in range(TRAIN_EPS):
         eta_completion = datetime.datetime.now() + eta
         print(f'EP={episode_num}/{TRAIN_EPS} | Avg/EP: {avg_time_per_ep} | ETA: {eta} (done at {eta_completion.strftime("%Y-%m-%d %H:%M:%S")})')
 
-    if (episode_num % 10 == 0) or episode_num == TRAIN_EPS:
-        if episode_num <= config['buffer_size']:
-            if (episode_num % 1000 == 0):
-                eval_agent(agent1, episode_num)
-        else:
-            if (episode_num % 1000 == 0):
-                eval_agent(agent1, episode_num)
+    if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
+        eval_agent(agent1, episode_num)
 
-    if (episode_num % 500 == 0) or episode_num == TRAIN_EPS:
-        with open(f'board_states_eps{episode_num-499}-{episode_num}_log.json', 'w') as f:
+    if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
+        with open(f'board_states_eps{episode_num-1000-1}-{episode_num}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
