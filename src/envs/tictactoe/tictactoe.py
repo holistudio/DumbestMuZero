@@ -174,8 +174,13 @@ class raw_env(AECEnv, EzPickle):
         action_mask = np.zeros(9, dtype=np.int8)
 
         # Per the documentation, the mask of any agent other than the
-        # currently selected one is all zeros.
-        if agent == self.agent_selection:
+        # currently selected one is all zeros,
+        # only if game is not over/truncated
+        if (
+            agent == self.agent_selection
+            and not self.terminations[agent]
+            and not self.truncations[agent]
+        ):
             for i in self.board.legal_moves():
                 action_mask[i] = 1
 
