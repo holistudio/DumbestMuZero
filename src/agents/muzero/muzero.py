@@ -345,6 +345,7 @@ class MuZeroAgent(object):
         # replay buffer for loading training batch data
         self.replay_buffer = ReplayBuffer(config['buffer_size'], config['batch_size'])
         self.buffer_size = config['buffer_size']
+        self.min_replay_size = config['min_replay_size']
 
         # neural networks
         self.state_function = StateFunction(self.obs_size[0],
@@ -872,7 +873,7 @@ class MuZeroAgent(object):
         # print('update()')
 
         # update weights only after replay buffer is full
-        if len(self.replay_buffer.buffer) >= self.buffer_size:
+        if len(self.replay_buffer.buffer) >= self.min_replay_size:
             # set neural nets to training mode
             self.state_function.train()
             self.dynamics_function.train()
