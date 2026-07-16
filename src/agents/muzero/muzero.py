@@ -466,7 +466,7 @@ class MuZeroAgent(object):
             for j in range(3):
                 if obs_grid[i, j] == 1:
                     board[j][i] = "X"
-                elif obs_grid[i, j] == 2:
+                elif obs_grid[i, j] == -1:
                     board[j][i] = "O"
 
         print("BOARD")
@@ -486,11 +486,23 @@ class MuZeroAgent(object):
         given a game board and action history
         return indices of available legal actions
         that can be taken
+
+        return empty list if game is over
         """
         temp_board = temp_board.clone()
-        if len(history) > 0:
-            for a in history:
-                temp_board[a] = -1
+        
+        for depth, action in enumerate(history):
+            temp_board[action] = 1 if depth % 2 == 0 else -1
+        winning_combinations = (
+            (0, 1, 2), (3, 4, 5), (6, 7, 8),
+            (0, 3, 6), (1, 4, 7), (2, 5, 8),
+            (0, 4, 8), (2, 4, 6),
+        )
+        for combo in winning_combinations:
+            values = temp_board[list(combo)]
+            if values[0] != 0 and torch.all(values == values[0]):
+                return []
+            
         return torch.where(temp_board == 0)[0].tolist()
 
     def whose_turn(self, action_history):
@@ -755,7 +767,8 @@ class MuZeroAgent(object):
                 # --- DEBUG END ---
 
                 # update node mean values back up to the root node
-                self.backup(value.item(), search_path, self.whose_turn(action_history))
+                leaf_value = value.item() if legal_actions else 0
+                self.backup(leaf_value, search_path, self.whose_turn(action_history))
                 
                 # --- DEBUG START ---
                 # print("Path AFTER Backup:")
