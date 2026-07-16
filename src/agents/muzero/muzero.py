@@ -313,7 +313,7 @@ class ReplayBuffer(object):
 
         # Stack into tensors and move to device once
         return (torch.stack(obs_batch).to(device),
-                torch.tensor(actions_batch, dtype=torch.float32).to(device),
+                torch.tensor(actions_batch, dtype=torch.long).to(device),
                 torch.tensor(target_rewards, dtype=torch.float32).to(device),
                 torch.tensor(target_values, dtype=torch.float32).to(device),
                 torch.stack(target_policies_batch).to(device),
