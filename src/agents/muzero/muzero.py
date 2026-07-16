@@ -540,7 +540,7 @@ class MuZeroAgent(object):
         """
 
         last_node.state = state
-        last_node.reward = reward
+        last_node.R = reward
         last_node.current_player = self.whose_turn(action_history)
 
         # if legal_actions is empty to avoid a ValueError
