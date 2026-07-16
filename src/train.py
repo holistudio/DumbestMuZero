@@ -1,5 +1,5 @@
 from envs.tictactoe import tictactoe
-from agents.muzero.muzero import MuZeroAgent
+from agents.muzero.muzero import MuZeroAgent, set_seed
 
 import datetime
 import csv
@@ -11,6 +11,9 @@ import numpy as np
 
 TRAIN_EPS = 10_000 # number of training self-play games
 EVAL_EPS = 100 # number of games to play against random agent
+SEED = 42
+
+set_seed(SEED)
 
 """TRAINING HELPER FUNCTIONS"""
 def preprocess_obs(observation):
@@ -66,7 +69,7 @@ def eval_agent(rl_agent, train_ep):
     }
 
     for ep in range(EVAL_EPS):
-        env.reset(seed=42)
+        env.reset(seed=SEED)
         for a in env.agent_iter():
             agent = agents[a]
             observation, reward, termination, truncation, info = env.last()
@@ -107,7 +110,7 @@ def eval_agent(rl_agent, train_ep):
     }
 
     for ep in range(EVAL_EPS):
-        env.reset(seed=42)
+        env.reset(seed=SEED)
         for a in env.agent_iter():
             agent = agents[a]
             observation, reward, termination, truncation, info = env.last()
@@ -192,7 +195,7 @@ every_ep_log = {}
 start_time = datetime.datetime.now()
 for ep in range(TRAIN_EPS):
     episode_num = ep + 1  # 1-indexed episode number, used for all EP display/logging
-    env.reset(seed=42)
+    env.reset(seed=SEED)
 
     for a in env.agent_iter():
         agent = agents[a]
