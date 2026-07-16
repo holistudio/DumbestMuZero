@@ -219,42 +219,18 @@ for ep in range(TRAIN_EPS):
 
         env.step(action)
 
+        agent.experience(
+            observation,
+            a,
+            action,
+            env.rewards[a],
+            any(env.terminations.values() or any(env.truncations.values()))
+        )
+
         # check if the game has ended (termination or truncation)
         if any(env.terminations.values()) or any(env.truncations.values()):
-            #  record the experience for ALL agents to ensure 
-            # the losing agent (who didn't get to act) receives their negative reward.
-            for agent_name in agents.keys():
-                p_agent = agents[agent_name]
-                r = env.rewards[agent_name]
-                t = env.terminations[agent_name]
-                trunc = env.truncations[agent_name]
-                is_terminal = t or trunc
-
-                # construct observation for the current player agent
-                if agent_name == a:
-                    # This is the agent who just acted (or caused termination)
-                    curr_obs = observation
-                    # Use the action they took. If None (shouldn't happen if they just acted), use 0.
-                    act = action if action is not None else 0
-                else:
-                    # for the other player agent we need to swap the observation perspective.
-                    curr_obs = copy.deepcopy(observation)
-                    p1_plane = curr_obs["observation"][:, :, 0].copy()
-                    p2_plane = curr_obs["observation"][:, :, 1].copy()
-                    curr_obs["observation"][:, :, 0] = p2_plane
-                    curr_obs["observation"][:, :, 1] = p1_plane
-                    
-                    # agent did not act, pass a random placeholder action
-                    # to avoid biasing the dynamics model against a specific move (like 0).
-                    act = env.action_space(agent_name).sample()
-                
-                p_agent.experience(curr_obs, agent_name, act, r, is_terminal)
-            
             # break the loop to finish the episode
             break
-        else:
-            # record experience for the current agent
-            agent.experience(observation, a, action, env.rewards[a], env.terminations[a])
 
     # agent neural network updates parameters if replay buffer is full
     agent1.update()
@@ -273,6 +249,7 @@ for ep in range(TRAIN_EPS):
         with open(f'board_states_eps{episode_num-1000}-{episode_num-1}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
+agent1.save_model()
 env.close()
 
 # post-hoc timing summary
