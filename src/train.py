@@ -270,7 +270,7 @@ for ep in range(TRAIN_EPS):
         eval_agent(agent1, episode_num)
 
     if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
-        with open(f'board_states_eps{episode_num-1000-1}-{episode_num}_log.json', 'w') as f:
+        with open(f'board_states_eps{episode_num-1000}-{episode_num-1}_log.json', 'w') as f:
             json.dump(every_ep_log, f, indent=4)
     # pause = input('\npress enter for new game')
 env.close()
