@@ -625,18 +625,20 @@ class MuZeroAgent(object):
             action_history.append(action)
         return node, search_path, action_history
 
-    def backup(self, value, search_path, leaf_player):
+    def backup(self, value, search_path):
         """
         backup phase of MuZero search
         update mean value based on simulated game outcomes 
         and node visit counts during simulation
         """
+        # value starts from the leaf player's perspective
+        # rewards from the perspective of the player who acted at the parent node
         G = value
         for current_node in reversed(search_path):
-            current_node.value_sum += G if current_node.current_player == leaf_player else -G
+            current_node.value_sum += G 
             current_node.N += 1
             self.update_min_max_Q(current_node.mean_value())
-            G = current_node.R + self.gamma * G
+            G = current_node.R - self.gamma * G
         pass
 
     def select_action(self, node, temperature):
