@@ -278,7 +278,15 @@ class raw_env(AECEnv, EzPickle):
         # Calculate the action mask for the new state.
         occupied_mask = (next_obs_board[:, :, 0] + next_obs_board[:, :, 1]).flatten()
         next_action_mask = 1 - occupied_mask
-        return {"observation": next_obs_board, "action_mask": next_action_mask.astype(np.int8)}
+        next_observation = {
+            "observation": next_obs_board, 
+            "action_mask": next_action_mask.astype(np.int8)
+        }
+        # if the game is over, all actions are masked
+        if self.check_terminal(next_observation):
+            next_observation['action_mask'][:] = 0
+            
+        return next_observation
 
     def reset(self, seed=None, options=None):
         self.board.reset()
