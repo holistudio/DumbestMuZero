@@ -443,25 +443,12 @@ class MuZeroAgent(object):
     def preprocess_obs(self, observation):
         """
         convert environment observation dictionary 
-        into a torch tensor for neural nets
+        into a canonical (player-relative) torch tensor for neural nets
         """
-        # pre-process observation dictionary into tensor
-        obs = torch.zeros((3,3), dtype=torch.float32)
-        current_player_plane = torch.tensor(observation["observation"][:, :, 0])
-        opponent_plane = torch.tensor(observation["observation"][:, :, 1])
-        total_pieces = torch.sum(current_player_plane) + torch.sum(opponent_plane)
-
-        # If total pieces is even, it's player 1's turn (current player is p1)
-        # If total pieces is odd, it's player 2's turn (current player is p2)
-        if total_pieces % 2 == 0:
-            p1_plane, p2_plane = current_player_plane, opponent_plane
-        else:
-            p2_plane, p1_plane = current_player_plane, opponent_plane
-
-        p2_plane = p2_plane * 2
-        obs = obs + p1_plane + p2_plane
-        obs = obs.reshape((9,1)).squeeze()
-        return obs
+        current_player_plane = torch.tensor(observation["observation"][:, :, 0], dtype=torch.float32)
+        opponent_plane = torch.tensor(observation["observation"][:, :, 1], dtype=torch.float32)
+        obs = current_player_plane - opponent_plane
+        return obs.reshape(-1)
     
     def display_board(self, obs):
         """
