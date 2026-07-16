@@ -704,6 +704,10 @@ class MuZeroAgent(object):
 
         # ensure inference mode
         with torch.no_grad():
+            # value normalization statistics are local to one search tree
+            self.min_Q = float('inf')
+            self.max_Q = -float('inf')
+
             # initialize tree root node
             root_node = Node(0)
 
@@ -731,14 +735,14 @@ class MuZeroAgent(object):
                 # Check if node is already expanded (has state) but has no children (terminal/leaf).
                 # This prevents re-expanding terminal nodes and handles the edge case where Root is terminal.
                 if last_node.state is not None:
-                    self.backup(0, search_path, self.whose_turn(action_history))
+                    self.backup(0, search_path)
                     continue
 
                 # get leaf node's parent
                 parent_node = search_path[-2]
 
                 # get latest candidate action as a tensor
-                latest_action = torch.tensor([[action_history[-1]]], dtype=torch.float32, device=self.device)
+                latest_action = torch.tensor([[action_history[-1]]], dtype=torch.long, device=self.device)
 
                 # dynamics function predicts next state and immediate reward
                 state, reward = self.dynamics_function(parent_node.state, latest_action)
@@ -774,7 +778,7 @@ class MuZeroAgent(object):
 
                 # update node mean values back up to the root node
                 leaf_value = value.item() if legal_actions else 0
-                self.backup(leaf_value, search_path, self.whose_turn(action_history))
+                self.backup(leaf_value, search_path)
                 
                 # --- DEBUG START ---
                 # print("Path AFTER Backup:")
