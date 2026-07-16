@@ -573,9 +573,13 @@ class MuZeroAgent(object):
         c2 = 19652
         N = node.N
         if N > 0:
-            Q = node.mean_value()
+            # child values are stored from player's perspective
+            # the parent is the opposing player, so negate value
+            # before using to select parent action
+            Q = -node.mean_value()
             if self.max_Q > self.min_Q:
-                Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
+                # revese normalization bounds as well
+                Q = (self.max_Q - node.mean_value()) / (self.max_Q - self.min_Q)
             Q = node.R + self.gamma * Q 
         else:
             Q = 0
