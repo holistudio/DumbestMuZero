@@ -384,6 +384,8 @@ class MuZeroAgent(object):
         self.root_value = 0
         self.action_probs = torch.zeros(self.action_size)
         self.temperature = config['temperature']
+        self.episodes_played = 0 # temperature schedule based on episodes
+        self.temp_schedule = config.get('temp_schedule', None)
         self.dirichlet_alpha = config['dirichlet_alpha']
 
 
@@ -822,8 +824,23 @@ class MuZeroAgent(object):
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
             # self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]
             self.replay_buffer.store_trajectory()
+
+            # after game is over advance the temperature schedule
+            self.episodes_played += 1
         pass
 
+    def current_temperature(self):
+        """
+        get current softmax sampling temperature
+        based on constant or variable temperature annealing schedule
+        """
+        if not self.temp_schedule:
+            return self.temperature
+        for threshold, temp in self.temp_schedule:
+            if self.episodes_played < threshold:
+                return temp
+        return self.temp_schedule[-1][1]
+    
     def step(self, observation):
         """
         select next action to play in the game
@@ -838,7 +855,7 @@ class MuZeroAgent(object):
         # there is likely a single move to exploit
         # that is best to block of connect 3 in a row
         if len(blanks) > 5:
-            action = self.search(obs, self.temperature)
+            action = self.search(obs, self.current_temperature())
         else:
             action = self.search(obs, 0.0)
 

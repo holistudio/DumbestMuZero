@@ -9,7 +9,7 @@ import copy
 
 import numpy as np
 
-TRAIN_EPS = 20_000 # number of training self-play games
+TRAIN_EPS = 10_000 # number of training self-play games
 EVAL_EPS = 100 # number of games to play against random agent
 SEED = 42
 
@@ -167,7 +167,7 @@ env = tictactoe.env()
 # initialize MuZero agent with config
 config = {
     'batch_size': 128,
-    'buffer_size': 10_000,
+    'buffer_size': TRAIN_EPS,
     'min_replay_size': 2000,
     'state_size': 16,
     'hidden_size': 64,
@@ -178,6 +178,7 @@ config = {
     'gamma': 1.0,
     'k_unroll_steps': 5,
     'temperature': 1.0,
+    'temp_schedule': [(0.6*TRAIN_EPS, 1.0), (0.9*TRAIN_EPS, 0.5), (10**9, 0.25)],
     'dirichlet_alpha': 1.0
 }
 
