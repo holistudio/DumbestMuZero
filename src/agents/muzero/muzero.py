@@ -312,9 +312,8 @@ class ReplayBuffer(object):
                 if i < len(root_values):
                     sample_policies.append(target_policies[i])
                 else:
-                    # Absorbing state: uniform policy
-                    uniform_policy = torch.ones_like(target_policies[0]) / target_policies[0].numel()
-                    sample_policies.append(uniform_policy)
+                    # Absorbing state: zero soft target policy
+                    sample_policies.append(torch.zeros_like(target_policies[0]))
             
             target_rewards.append(sample_rewards)
             target_values.append(sample_values)
