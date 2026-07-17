@@ -387,6 +387,7 @@ class MuZeroAgent(object):
         self.episodes_played = 0 # temperature schedule based on episodes
         self.temp_schedule = config.get('temp_schedule', None)
         self.dirichlet_alpha = config['dirichlet_alpha']
+        self.root_exploration_fraction = config['root_exploration_fraction']
 
 
         self.state_function.eval()
@@ -697,11 +698,10 @@ class MuZeroAgent(object):
         add Dirichlet noise to root node's child node policy priors
         to encourage exploration of different actions during MuZero search/simulation
         """
-        root_exploration_fraction = 0.25
         actions = list(node.children.keys())
         noise = torch.distributions.Dirichlet(torch.full((len(actions),), self.dirichlet_alpha)).sample()
         for a, n in zip(actions, noise):
-            node.children[a].P = node.children[a].P * (1 - root_exploration_fraction) + n * root_exploration_fraction
+            node.children[a].P = node.children[a].P * (1 - self.root_exploration_fraction) + n * self.root_exploration_fraction
             
     def search(self, obs, temperature):
         """
