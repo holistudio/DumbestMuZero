@@ -233,7 +233,8 @@ class ReplayBuffer(object):
             else:
                 ix = 0
 
-            td_steps = len(root_values) - ix
+            # td_steps = len(root_values) - ix
+            td_steps = k_unroll_steps
 
             # Collect initial observation for this sequence
             obs_batch.append(observations[ix])
