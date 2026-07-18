@@ -126,9 +126,9 @@ class Node(object):
         self.R = 0 # immediate reward
 
         # track the player whose turn it is at this node
-        # ex: current_player = 0, player X's turn is at this node, player O has already made a move
-        # ex: current_player = 0, player O's turn is at this node, player X has already made a move
-        self.current_player = -1 
+        # ex: to_play = 0, player X's turn is at this node, player O has already made a move
+        # ex: to_play = 1, player O's turn is at this node, player X has already made a move
+        self.to_play = -1
 
         # child nodes
         self.children = {}
@@ -519,7 +519,9 @@ class MuZeroAgent(object):
         policy = {a: math.exp(policy_logits[a].item() - max_logit) for a in actions}
         policy_sum = sum(policy.values())
         for a in actions:
-            last_node.children[a] = Node(policy[a]/policy_sum)
+            child = Node(policy[a]/policy_sum)
+            child.to_play = 1 - last_node.to_play
+            last_node.children[a] = child
         pass
 
     def pUCT(self, node, sum_visits):
@@ -540,9 +542,8 @@ class MuZeroAgent(object):
             # before using to select parent action
             Q = -node.mean_value()
             if self.max_Q > self.min_Q:
-                # revese normalization bounds as well
-                Q = (self.max_Q - node.mean_value()) / (self.max_Q - self.min_Q)
-            Q = node.R + self.gamma * Q 
+                Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
+            Q = node.R + self.gamma * Q
         else:
             Q = 0
         P = node.P
@@ -593,14 +594,17 @@ class MuZeroAgent(object):
         update mean value based on simulated game outcomes 
         and node visit counts during simulation
         """
-        # value starts from the leaf player's perspective
-        # rewards from the perspective of the player who acted at the parent node
+        to_play = search_path[-1].to_play
         G = value
-        for current_node in reversed(search_path):
-            current_node.value_sum += G 
+        for i in range(len(search_path) - 1, -1, -1):
+            current_node = search_path[i]
+            current_node.value_sum += G if current_node.to_play == to_play else -G
             current_node.N += 1
-            self.update_min_max_Q(current_node.mean_value())
-            G = current_node.R - self.gamma * G
+            self.update_min_max_Q(-current_node.mean_value())
+            if i > 0:
+                parent = search_path[i - 1]
+                R = current_node.R
+                G = (R if parent.to_play == to_play else -R) + self.gamma * G
         pass
 
     def select_action(self, node, temperature):
@@ -672,7 +676,10 @@ class MuZeroAgent(object):
             self.max_Q = -float('inf')
 
             # initialize tree root node
+            # to_play is only meaningful relative to other nodes in this search tree,
+            # so 0 is an arbitrary but consistent reference point for this call
             root_node = Node(0)
+            root_node.to_play = 0
 
             # encode observation into a hidden state represnetation
             initial_state = self.state_function(obs.to(self.device).unsqueeze(0))
