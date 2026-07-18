@@ -495,46 +495,6 @@ class MuZeroAgent(object):
 
 
     """MuZero search functions"""
-    def get_legal_actions(self, temp_board, history):
-        """
-        given a game board and action history
-        return indices of available legal actions
-        that can be taken
-
-        return empty list if game is over
-        """
-        temp_board = temp_board.clone()
-        
-        for depth, action in enumerate(history):
-            temp_board[action] = 1 if depth % 2 == 0 else -1
-        winning_combinations = (
-            (0, 1, 2), (3, 4, 5), (6, 7, 8),
-            (0, 3, 6), (1, 4, 7), (2, 5, 8),
-            (0, 4, 8), (2, 4, 6),
-        )
-        for combo in winning_combinations:
-            values = temp_board[list(combo)]
-            if values[0] != 0 and torch.all(values == values[0]):
-                return []
-            
-        return torch.where(temp_board == 0)[0].tolist()
-
-    def whose_turn(self, action_history):
-        """
-        based on the environment and action history in simulation
-        return the player whose turn it is in simulation
-        (NOT the current player turn in the game being played)
-        """
-        if self.env.agent_selection == 'player_1':
-            if len(action_history) % 2 == 0:
-                return 0 # player 1's turn
-            else:
-                return 1 # player 2's turn
-        if self.env.agent_selection == 'player_2':
-            if len(action_history) % 2 == 0:
-                return 1 # player 2's turn
-            else:
-                return 0 # player 1's turn
 
     def update_min_max_Q(self, node_mean_value):
         """
@@ -546,7 +506,7 @@ class MuZeroAgent(object):
             self.min_Q = node_mean_value
         pass
 
-    def expansion(self, last_node, state, reward, policy_logits, legal_actions, action_history):
+    def expansion(self, last_node, state, reward, policy_logits, actions):
         """
         expansion phase of MuZero search
         add child nodes to a given leaf node based on legal actions
@@ -555,11 +515,6 @@ class MuZeroAgent(object):
 
         last_node.state = state
         last_node.R = reward
-        last_node.current_player = self.whose_turn(action_history)
-
-        # if legal_actions is empty to avoid a ValueError
-        if not legal_actions:
-            return
 
         # Since networks now process batches, squeeze the batch dimension for single inferences
         policy_logits = policy_logits.squeeze(0)
@@ -567,10 +522,10 @@ class MuZeroAgent(object):
         # mask illegal actions and normalize the policy over legal moves
         # Use .item() to convert tensor logits to float for math.exp
         # Subtract max logit for numerical stability to prevent ZeroDivisionError
-        max_logit = max(policy_logits[a].item() for a in legal_actions)
-        policy = {a: math.exp(policy_logits[a].item() - max_logit) for a in legal_actions}
+        max_logit = max(policy_logits[a].item() for a in actions)
+        policy = {a: math.exp(policy_logits[a].item() - max_logit) for a in actions}
         policy_sum = sum(policy.values())
-        for a in policy.keys():
+        for a in actions:
             last_node.children[a] = Node(policy[a]/policy_sum)
         pass
 
@@ -731,11 +686,10 @@ class MuZeroAgent(object):
             policy_logits, value = self.prediction_function(initial_state)
 
             # get list of current available legal actions
-            action_history = []
-            legal_actions = self.get_legal_actions(obs, action_history)
+            root_actions = torch.where(obs == 0)[0].tolist()
 
             # expand root node
-            self.expansion(root_node, initial_state, 0, policy_logits, legal_actions, action_history)
+            self.expansion(root_node, initial_state, 0, policy_logits, root_actions)
             
             # add exploration noise to root node's children
             self.add_exploration_noise(root_node)
@@ -743,13 +697,6 @@ class MuZeroAgent(object):
             for i in range(self.max_iters):
                 # select leaf node
                 last_node, search_path, action_history = self.selection(root_node)
-
-                # TODO: revisit this
-                # Check if node is already expanded (has state) but has no children (terminal/leaf).
-                # This prevents re-expanding terminal nodes and handles the edge case where Root is terminal.
-                if last_node.state is not None:
-                    self.backup(0, search_path)
-                    continue
 
                 # get leaf node's parent
                 parent_node = search_path[-2]
@@ -763,11 +710,8 @@ class MuZeroAgent(object):
                 # prediciton function estimates policy logits and value based on next state
                 policy_logits, value = self.prediction_function(state)
 
-                # get legal actions avalaible at the leaf node given previous actions
-                legal_actions = self.get_legal_actions(obs, action_history)
-
                 # expand leaf node with child nodes for each legal action
-                self.expansion(last_node, state, reward.item(), policy_logits, legal_actions, action_history)
+                self.expansion(last_node, state, reward.item(), policy_logits, list(range(self.action_size)))
                 
                 # --- DEBUG START ---
                 # print(f"\n[DEBUG] Simulation {i+1}/{self.max_iters}")
@@ -790,8 +734,7 @@ class MuZeroAgent(object):
                 # --- DEBUG END ---
 
                 # update node mean values back up to the root node
-                leaf_value = value.item() if legal_actions else 0
-                self.backup(leaf_value, search_path)
+                self.backup(value.item(), search_path)
                 
                 # --- DEBUG START ---
                 # print("Path AFTER Backup:")
@@ -915,7 +858,7 @@ class MuZeroAgent(object):
                 mask = legal_masks_batch[:, 0]
                 
                 # mask illegal moves from predicted policy 
-                policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
+                # policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
                 
                 # predicted_reward is 0 for initial step (no dynamics yet)
                 pred_reward_0 = torch.zeros_like(t_reward)
@@ -944,10 +887,11 @@ class MuZeroAgent(object):
                     t_value = target_values_batch[:, k+1].unsqueeze(1)
                     t_policy = target_policies_batch[:, k+1]
                     t_reward = target_rewards_batch[:, k+1].unsqueeze(1)
-                    mask = legal_masks_batch[:, k+1]
+                    
                     
                     # mask illegal moves from predicted policy 
-                    policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
+                    # mask = legal_masks_batch[:, k+1]
+                    # policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
                     
                     # compute loss w.r.t each target and prediction
                     l = F.mse_loss(pred_reward, t_reward) + \
