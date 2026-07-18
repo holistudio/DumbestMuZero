@@ -227,17 +227,24 @@ for ep in range(TRAIN_EPS):
 
         env.step(action)
 
+        game_over = any(env.terminations.values()) or any(env.truncations.values())
+
         agent.experience(
             observation,
             a,
             action,
             env.rewards[a],
-            any(env.terminations.values() or any(env.truncations.values()))
+            False  # trajectory is closed by the terminal-state record below
         )
 
         # check if the game has ended (termination or truncation)
-        if any(env.terminations.values()) or any(env.truncations.values()):
-            # break the loop to finish the episode
+        if game_over:
+            # env.last() now returns the finished board from the perspective of
+            # the player to move, i.e. the one who did NOT make the final move.
+            # store it as a terminal record (action=None -> absorbing value/policy)
+            final_obs, _, _, _, _ = env.last()
+            final_a = env.agent_selection
+            agent.experience(final_obs, final_a, None, env.rewards[final_a], True)
             break
 
     # agent neural network updates parameters if replay buffer is full
