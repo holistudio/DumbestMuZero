@@ -760,9 +760,14 @@ class MuZeroAgent(object):
         """
         obs = self.preprocess_obs(observation)
         player_turn = 0 if player_label == 'player_1' else 1
-        # If terminal, the value of the state is 0. Using self.root_value would be stale/incorrect.
-        # val = 0 if terminal else self.root_value
-        self.replay_buffer.store_step(obs, player_turn, action, self.action_probs.clone(), reward, self.root_value)
+        # an absorbing state has value 0 and no policy
+        if action is None:
+            value = 0.0                                # absorbing-state bootstrap value
+            policy = torch.zeros(self.action_size)     # absorbing-state policy target
+        else:
+            value = self.root_value
+            policy = self.action_probs.clone()
+        self.replay_buffer.store_step(obs, player_turn, action, policy, reward, value)
         if terminal:
             # once final_outcome is nonzero, label the entire trajectory with the final outcome 
             # self.replay_buffer.final_outcomes = [final_outcome if i == player_turn else -final_outcome for i in self.replay_buffer.player_turns]
