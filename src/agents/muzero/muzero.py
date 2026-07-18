@@ -234,7 +234,7 @@ class ReplayBuffer(object):
                 ix = 0
 
             # td_steps = len(root_values) - ix
-            td_steps = k_unroll_steps
+            # td_steps = k_unroll_steps
 
             # Collect initial observation for this sequence
             obs_batch.append(observations[ix])
@@ -268,15 +268,8 @@ class ReplayBuffer(object):
                 else:
                     current_player = None
                 
-                bootstrap_ix = i + td_steps
-
-                if bootstrap_ix < len(root_values):
-                    value = root_values[bootstrap_ix] * gamma**td_steps
-                    bootstrap_player = player_turns[bootstrap_ix]
-                    if current_player is not None and current_player != bootstrap_player:
-                        value = -value
-                else:
-                    value = 0
+                bootstrap_ix = len(root_values)   # always terminal -> no bootstrap term
+                value = 0.0
                 for j, reward in enumerate(rewards[i:bootstrap_ix]):
                     if i+j < len(player_turns) and player_turns[i+j] == current_player:
                         value += reward * gamma**j
