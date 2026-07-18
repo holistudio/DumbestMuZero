@@ -647,6 +647,8 @@ class MuZeroAgent(object):
         to encourage exploration of different actions during MuZero search/simulation
         """
         actions = list(node.children.keys())
+        if not actions:
+            return
         noise = torch.distributions.Dirichlet(torch.full((len(actions),), self.dirichlet_alpha)).sample()
         for a, n in zip(actions, noise):
             node.children[a].P = node.children[a].P * (1 - self.root_exploration_fraction) + n * self.root_exploration_fraction
