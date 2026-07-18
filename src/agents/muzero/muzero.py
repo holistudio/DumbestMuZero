@@ -345,7 +345,7 @@ class MuZeroAgent(object):
                                             config['state_size'],
                                             config['hidden_size'])
         
-        self.dynamics_function = DynamicsFunction(config['state_size']+1,
+        self.dynamics_function = DynamicsFunction(config['state_size']+self.action_size,
                                                   config['state_size'],
                                                   config['hidden_size'])
         
@@ -697,7 +697,10 @@ class MuZeroAgent(object):
                 parent_node = search_path[-2]
 
                 # get latest candidate action as a tensor
-                latest_action = torch.tensor([[action_history[-1]]], dtype=torch.long, device=self.device)
+                latest_action = F.one_hot(
+                    torch.tensor([action_history[-1]], device=self.device),
+                    num_classes=self.action_size,
+                ).float()  # shape (1, action_size)
 
                 # dynamics function predicts next state and immediate reward
                 state, reward = self.dynamics_function(parent_node.state, latest_action)
@@ -855,9 +858,9 @@ class MuZeroAgent(object):
                 t_value = target_values_batch[:, 0].unsqueeze(1)
                 t_policy = target_policies_batch[:, 0]
                 t_reward = target_rewards_batch[:, 0].unsqueeze(1)
-                mask = legal_masks_batch[:, 0]
                 
                 # mask illegal moves from predicted policy 
+                # mask = legal_masks_batch[:, 0]
                 # policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
                 
                 # predicted_reward is 0 for initial step (no dynamics yet)
@@ -873,8 +876,8 @@ class MuZeroAgent(object):
                 
                 # unroll steps
                 for k in range(self.k_unroll_steps):
-                    # get actions for step k for the whole batch: (Batch, 1)
-                    action = actions_batch[:, k].unsqueeze(1)
+                    # get actions for step k for the whole batch
+                    action = F.one_hot(actions_batch[:, k], num_classes=self.action_size).float()  # (batch, action_size)
                     
                     # dynamics and prediction function on batch
                     state, pred_reward = self.dynamics_function(state, action)
