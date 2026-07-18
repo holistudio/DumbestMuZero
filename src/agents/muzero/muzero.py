@@ -495,7 +495,7 @@ class MuZeroAgent(object):
         """
         if node_mean_value > self.max_Q:
             self.max_Q = node_mean_value
-        elif node_mean_value < self.min_Q:
+        if node_mean_value < self.min_Q:
             self.min_Q = node_mean_value
         pass
 
