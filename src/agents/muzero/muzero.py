@@ -233,6 +233,11 @@ class ReplayBuffer(object):
             else:
                 ix = 0
 
+            # last record is the terminal state; its reward is the game outcome
+            # from that record's player's perspective (-1 loss, 0 draw)
+            outcome = rewards[-1]
+            terminal_player = player_turns[-1]
+
             # td_steps = len(root_values) - ix
             # td_steps = k_unroll_steps
 
@@ -268,20 +273,18 @@ class ReplayBuffer(object):
                 else:
                     current_player = None
                 
-                bootstrap_ix = len(root_values)   # always terminal -> no bootstrap term
-                value = 0.0
-                for j, reward in enumerate(rewards[i:bootstrap_ix]):
-                    if i+j < len(player_turns) and player_turns[i+j] == current_player:
-                        value += reward * gamma**j
-                    else:
-                        value -= reward * gamma**j
-                
-                if i > 0 and i <= len(rewards):
-                    last_reward = rewards[i-1]
+                # board-game convention: no intermediate rewards, discount 1,
+                # no bootstrapping. the terminal record carries the outcome from
+                # its own player's perspective; sign it per state.
+                if current_player is None:
+                    value = 0.0                      # absorbing state past the terminal
+                elif current_player == terminal_player:
+                    value = outcome
                 else:
-                    last_reward = 0
+                    value = -outcome
 
-                sample_rewards.append(last_reward)
+                # reward head is unused for board games
+                sample_rewards.append(0.0)
                 sample_values.append(value)
                 
                 # --- DEBUG DIAGNOSIS START ---
