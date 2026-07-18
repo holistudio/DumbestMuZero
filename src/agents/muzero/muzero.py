@@ -657,7 +657,7 @@ class MuZeroAgent(object):
         for a, n in zip(actions, noise):
             node.children[a].P = node.children[a].P * (1 - self.root_exploration_fraction) + n * self.root_exploration_fraction
             
-    def search(self, obs, temperature):
+    def search(self, obs, temperature, add_noise=True):
         """
         overall MuZero search algorithm
         
@@ -694,7 +694,8 @@ class MuZeroAgent(object):
             self.expansion(root_node, initial_state, 0, policy_logits, root_actions)
             
             # add exploration noise to root node's children
-            self.add_exploration_noise(root_node)
+            if add_noise:
+                self.add_exploration_noise(root_node)
 
             for i in range(self.max_iters):
                 # select leaf node
@@ -828,7 +829,7 @@ class MuZeroAgent(object):
         self.prediction_function.eval()
         
         obs = self.preprocess_obs(observation)
-        action = self.search(obs, 0.0)
+        action = self.search(obs, 0.0, add_noise=False)
         return action
 
     def scale_gradient(self, tensor, scale):
