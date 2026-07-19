@@ -49,7 +49,7 @@ class StateFunction(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
 
@@ -82,11 +82,13 @@ class DynamicsFunction(nn.Module):
         self.state_head = nn.Linear(hidden_size, output_size)
         self.reward_head = nn.Linear(hidden_size, 1)
         self.apply(self._init_weights)
+        torch.nn.init.normal_(self.reward_head.weight, mean=0.0, std=0.01)
+        torch.nn.init.zeros_(self.reward_head.bias)
         pass
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
 
@@ -122,11 +124,15 @@ class PredictionFunction(nn.Module):
         self.policy_head = nn.Linear(hidden_size, output_size)
         self.value_head = nn.Linear(hidden_size, 1)
         self.apply(self._init_weights)
+        torch.nn.init.normal_(self.policy_head.weight, mean=0.0, std=0.01)
+        torch.nn.init.zeros_(self.policy_head.bias)
+        torch.nn.init.normal_(self.value_head.weight, mean=0.0, std=0.01)
+        torch.nn.init.zeros_(self.value_head.bias)
         pass
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            torch.nn.init.kaiming_normal_(module.weight, nonlinearity='relu')
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
 
