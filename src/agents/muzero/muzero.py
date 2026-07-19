@@ -583,10 +583,11 @@ class MuZeroAgent(object):
             # child values are stored from player's perspective
             # the parent is the opposing player, so negate value
             # before using to select parent action
-            Q = -node.mean_value()
+            # normalize the full backed-up action value R + gamma*V,
+            # not just the raw mean value (Eq. 5 / Appendix B)
+            Q = node.R + self.gamma * (-node.mean_value())
             if self.max_Q > self.min_Q:
                 Q = (Q - self.min_Q) / (self.max_Q - self.min_Q)
-            Q = node.R + self.gamma * Q
         else:
             Q = 0
         P = node.P
@@ -643,7 +644,9 @@ class MuZeroAgent(object):
             current_node = search_path[i]
             current_node.value_sum += G if current_node.to_play == to_play else -G
             current_node.N += 1
-            self.update_min_max_Q(-current_node.mean_value())
+            # track the range of the same backed-up quantity used in pUCT:
+            # R + gamma*V, not the raw mean value
+            self.update_min_max_Q(current_node.R + self.gamma * (-current_node.mean_value()))
             if i > 0:
                 parent = search_path[i - 1]
                 R = current_node.R
