@@ -8,6 +8,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+def min_max_normalize(state):
+    """
+    min-max normalize hidden state to [0, 1] elementwise per row,
+    matching the action input range (Appendix G)
+    """
+    s_min = state.min(dim=-1, keepdim=True)[0]
+    s_max = state.max(dim=-1, keepdim=True)[0]
+    scale = s_max - s_min
+    scale = torch.where(scale < 1e-5, scale + 1e-5, scale)
+    return (state - s_min) / scale
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -52,7 +63,8 @@ class StateFunction(nn.Module):
         x = self.lin4(x)
         x = F.gelu(x)
         x = self.lin5(x)
-        return x
+        s = min_max_normalize(x)
+        return s
 
 class DynamicsFunction(nn.Module):
     """
@@ -90,6 +102,7 @@ class DynamicsFunction(nn.Module):
         x = self.lin4(x)
         x = F.gelu(x)
         s = self.state_head(x)
+        s = min_max_normalize(s)
         r = self.reward_head(x)
         return s, r
     
