@@ -268,10 +268,9 @@ class ReplayBuffer(object):
             observations, player_turns, actions = random_ep['obs'], random_ep['turns'], random_ep['actions']
             rewards, target_policies, root_values = random_ep['rewards'], random_ep['target_policies'], random_ep['root_values']
             
-            if len(root_values) - k_unroll_steps -1 > 0:
-                ix = random.randint(0, len(root_values) - k_unroll_steps -1)
-            else:
-                ix = 0
+            # sample from any position in the game, including near the end -
+            # unrolling past the terminal state is handled via absorbing states below.
+            ix = random.randint(0, len(root_values) - 1)
 
             # last record is the terminal state; its reward is the game outcome
             # from that record's player's perspective (-1 loss, 0 draw)
@@ -287,10 +286,12 @@ class ReplayBuffer(object):
             # Collect actions for unrolling, padding with random actions if we go past the end of the game
             current_actions = []
             for k in range(k_unroll_steps):
-                if ix + k < len(actions):
+                if ix + k < len(actions) and actions[ix+k] is not None:
                     current_actions.append(actions[ix+k])
                 else:
-                    # Pad with a random valid action index (e.g., 0) for absorbing states
+                    # Pad with a random valid action index for absorbing states
+                    # (either past the end of the game, or the terminal record itself,
+                    # whose stored action is None since no action is taken from it)
                     current_actions.append(random.randint(0, len(target_policies[0])-1))
             actions_batch.append(current_actions)
 
