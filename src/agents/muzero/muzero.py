@@ -33,7 +33,14 @@ class StateFunction(nn.Module):
         self.lin3 = nn.Linear(hidden_size, hidden_size)
         self.lin4 = nn.Linear(hidden_size, hidden_size)
         self.lin5 = nn.Linear(hidden_size, output_size)
+        self.apply(self._init_weights)
         pass
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
 
     def forward(self, obs):
         x = self.lin1(obs)
@@ -62,7 +69,14 @@ class DynamicsFunction(nn.Module):
         self.lin4 = nn.Linear(hidden_size, hidden_size)
         self.state_head = nn.Linear(hidden_size, output_size)
         self.reward_head = nn.Linear(hidden_size, 1)
+        self.apply(self._init_weights)
         pass
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
 
     def forward(self, s_prev, a):
         # concatenate along dimension 1 to support batch processing
@@ -94,7 +108,14 @@ class PredictionFunction(nn.Module):
         self.lin4 = nn.Linear(hidden_size, hidden_size)
         self.policy_head = nn.Linear(hidden_size, output_size)
         self.value_head = nn.Linear(hidden_size, 1)
+        self.apply(self._init_weights)
         pass
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
 
     def forward(self, s):
         x = self.lin1(s)
