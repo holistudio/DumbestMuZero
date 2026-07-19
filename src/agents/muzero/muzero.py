@@ -753,14 +753,17 @@ class MuZeroAgent(object):
                     num_classes=self.action_size,
                 ).float()  # shape (1, action_size)
 
-                # dynamics function predicts next state and immediate reward
-                state, reward = self.dynamics_function(parent_node.state, latest_action)
+                # dynamics function predicts next state
+                # reward output is unused and the reward head
+                # is never trained
+                state, _ = self.dynamics_function(parent_node.state, latest_action)
 
                 # prediciton function estimates policy logits and value based on next state
                 policy_logits, value = self.prediction_function(state)
 
                 # expand leaf node with child nodes for each legal action
-                self.expansion(last_node, state, reward.item(), policy_logits, list(range(self.action_size)))
+                # board games have no intermediate rewards
+                self.expansion(last_node, state, 0.0, policy_logits, list(range(self.action_size)))
                 
                 # --- DEBUG START ---
                 # print(f"\n[DEBUG] Simulation {i+1}/{self.max_iters}")
