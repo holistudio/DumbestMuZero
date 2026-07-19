@@ -889,18 +889,15 @@ class MuZeroAgent(object):
                 # get batch targets for step 0
                 t_value = target_values_batch[:, 0].unsqueeze(1)
                 t_policy = target_policies_batch[:, 0]
-                t_reward = target_rewards_batch[:, 0].unsqueeze(1)
-                
-                # mask illegal moves from predicted policy 
+
+                # mask illegal moves from predicted policy
                 # mask = legal_masks_batch[:, 0]
                 # policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
-                
-                # predicted_reward is 0 for initial step (no dynamics yet)
-                pred_reward_0 = torch.zeros_like(t_reward)
-                
+
                 # compute loss for step 0
-                loss = F.mse_loss(pred_reward_0, t_reward) + \
-                       F.cross_entropy(policy_logits, t_policy) + \
+                # board games have no intermediate rewards, so the reward
+                # prediction loss is omitted (Appendix G)
+                loss = F.cross_entropy(policy_logits, t_policy) + \
                        F.mse_loss(value, t_value)
                 
                 # gradient scale for recurrent backpropagation through time stable training
@@ -912,7 +909,9 @@ class MuZeroAgent(object):
                     action = F.one_hot(actions_batch[:, k], num_classes=self.action_size).float()  # (batch, action_size)
                     
                     # dynamics and prediction function on batch
-                    state, pred_reward = self.dynamics_function(state, action)
+                    # reward output unused: board games have no intermediate
+                    # rewards, so the reward prediction loss is omitted (Appendix G)
+                    state, _ = self.dynamics_function(state, action)
                     policy_logits, value = self.prediction_function(state)
                     
                     # scale hidden state gradient for stability
@@ -921,16 +920,13 @@ class MuZeroAgent(object):
                     # get get batch targets
                     t_value = target_values_batch[:, k+1].unsqueeze(1)
                     t_policy = target_policies_batch[:, k+1]
-                    t_reward = target_rewards_batch[:, k+1].unsqueeze(1)
-                    
                     
                     # mask illegal moves from predicted policy 
                     # mask = legal_masks_batch[:, k+1]
                     # policy_logits = policy_logits.masked_fill(~mask, -float('inf'))
                     
                     # compute loss w.r.t each target and prediction
-                    l = F.mse_loss(pred_reward, t_reward) + \
-                        F.cross_entropy(policy_logits, t_policy) + \
+                    l = F.cross_entropy(policy_logits, t_policy) + \
                         F.mse_loss(value, t_value)
                     
                     # scale loss for stability
