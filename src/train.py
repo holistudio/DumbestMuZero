@@ -168,7 +168,7 @@ env = tictactoe.env()
 config = {
     'batch_size': 128,
     'buffer_size': TRAIN_EPS,
-    'min_replay_size': 1000,
+    'min_replay_size': 1500,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 1e-3,
@@ -180,7 +180,7 @@ config = {
     'temperature': 1.0,
     'temp_schedule': [(0.6*TRAIN_EPS, 1.0), (0.9*TRAIN_EPS, 0.5), (10**9, 0.25)],
     'dirichlet_alpha': 1.0,
-    'root_exploration_fraction': 0.4
+    'root_exploration_fraction': 0.25
 }
 
 agent1 = MuZeroAgent(environment=env, config=config)
