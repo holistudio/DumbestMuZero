@@ -10,7 +10,7 @@ import copy
 import numpy as np
 
 TRAIN_EPS = 10_000 # number of training self-play games
-EVAL_EPS = 100 # number of games to play against random agent
+EVAL_EPS = 500 # number of games to play against random agent
 SEED = 42
 
 set_seed(SEED)
@@ -145,9 +145,11 @@ def eval_agent(rl_agent, train_ep):
     # calculate win percentages
     p1_w_perc = p1_w_l_d[0] * 100 / sum(p1_w_l_d)
     p2_w_perc = p2_w_l_d[0] * 100 / sum(p2_w_l_d)
+    p1_l_perc = p1_w_l_d[1] * 100 / sum(p1_w_l_d)
+    p2_l_perc = p2_w_l_d[1] * 100 / sum(p2_w_l_d)
 
     # display performance in terminal
-    print(f'EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}%, {p1_w_l_d}, as P2: {p2_w_perc:.2f}%, {p2_w_l_d}')
+    print(f'EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}% win, {p1_l_perc:.2f}% loss,  {p1_w_l_d}, as P2: {p2_w_perc:.2f}% win, {p2_l_perc:.2f}% loss, {p2_w_l_d}')
     
     # log in CSV file
     csv_filename = 'agent_performance.csv'
