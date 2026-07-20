@@ -10,7 +10,7 @@ import copy
 import numpy as np
 
 TRAIN_EPS = 10_000 # number of training self-play games
-EVAL_EPS = 500 # number of games to play against random agent
+EVAL_EPS = 10 # number of games to play against random agent
 SEED = 42
 
 set_seed(SEED)
@@ -149,7 +149,7 @@ def eval_agent(rl_agent, train_ep):
     p2_l_perc = p2_w_l_d[1] * 100 / sum(p2_w_l_d)
 
     # display performance in terminal
-    print(f'EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}% win, {p1_l_perc:.2f}% loss,  {p1_w_l_d}, as P2: {p2_w_perc:.2f}% win, {p2_l_perc:.2f}% loss, {p2_w_l_d}')
+    print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}% win, {p1_l_perc:.2f}% loss,  {p1_w_l_d}, as P2: {p2_w_perc:.2f}% win, {p2_l_perc:.2f}% loss, {p2_w_l_d}')
     
     # log in CSV file
     csv_filename = 'agent_performance.csv'
@@ -199,9 +199,19 @@ agents = {
 # reached during self-play
 every_ep_log = {}
 
+# checkpoints at which eval_agent() will be called during training,
+# used to estimate how many eval calls remain for the completion ETA
+eval_checkpoints = set(range(100, TRAIN_EPS + 1, 1000))
+eval_checkpoints.add(TRAIN_EPS)
+total_eval_calls_expected = len(eval_checkpoints)
+
 start_time = datetime.datetime.now()
+train_time_total = datetime.timedelta()
+eval_time_total = datetime.timedelta()
+eval_call_count = 0
 for ep in range(TRAIN_EPS):
     episode_num = ep + 1  # 1-indexed episode number, used for all EP display/logging
+    ep_start_time = datetime.datetime.now()
     env.reset(seed=SEED)
 
     for a in env.agent_iter():
@@ -251,16 +261,24 @@ for ep in range(TRAIN_EPS):
 
     # agent neural network updates parameters if replay buffer is full
     agent1.update()
+    train_time_total += datetime.datetime.now() - ep_start_time
 
-    if episode_num == 1 or episode_num % 1000 == 0:
-        elapsed = datetime.datetime.now() - start_time
-        avg_time_per_ep = elapsed / episode_num
-        eta = avg_time_per_ep * (TRAIN_EPS - episode_num)
-        eta_completion = datetime.datetime.now() + eta
-        print(f'EP={episode_num}/{TRAIN_EPS} | Avg/EP: {avg_time_per_ep} | ETA: {eta} (done at {eta_completion.strftime("%Y-%m-%d %H:%M:%S")})')
-
-    if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
+    if (episode_num % 10 == 0) or episode_num == TRAIN_EPS:
+        eval_start_time = datetime.datetime.now()
         eval_agent(agent1, episode_num)
+        eval_time_total += datetime.datetime.now() - eval_start_time
+        eval_call_count += 1
+
+    if episode_num == 1 or episode_num % 10 == 0:
+        avg_time_per_train_ep = train_time_total / episode_num
+        avg_time_per_eval_call = (eval_time_total / eval_call_count) if eval_call_count > 0 else datetime.timedelta()
+
+        remaining_train_eps = TRAIN_EPS - episode_num
+        remaining_eval_calls = total_eval_calls_expected - eval_call_count
+
+        eta = (avg_time_per_train_ep * remaining_train_eps) + (avg_time_per_eval_call * remaining_eval_calls)
+        eta_completion = datetime.datetime.now() + eta
+        print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} EP={episode_num}/{TRAIN_EPS} | Avg/TrainEP: {avg_time_per_train_ep} | Avg/EvalCall: {avg_time_per_eval_call} | ETA: {eta} (done at {eta_completion.strftime("%Y-%m-%d %H:%M:%S")})')
 
     if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
         with open(f'board_states_eps{episode_num-1000}-{episode_num-1}_log.json', 'w') as f:
@@ -271,5 +289,8 @@ env.close()
 
 # post-hoc timing summary
 total_elapsed = datetime.datetime.now() - start_time
-avg_time_per_ep = total_elapsed / TRAIN_EPS
-print(f'\nDone: {TRAIN_EPS} episodes in {total_elapsed} (avg {avg_time_per_ep} per episode)')
+avg_time_per_train_ep = train_time_total / TRAIN_EPS
+avg_time_per_eval_call = (eval_time_total / eval_call_count) if eval_call_count > 0 else datetime.timedelta()
+print(f'\n{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} Done: {TRAIN_EPS} episodes in {total_elapsed} '
+      f'(train: {train_time_total}, avg {avg_time_per_train_ep}/ep | '
+      f'eval: {eval_time_total} over {eval_call_count} calls, avg {avg_time_per_eval_call}/call)')
