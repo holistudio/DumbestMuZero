@@ -6,14 +6,53 @@ import csv
 import json
 import os
 import copy
+import sys
 
 import numpy as np
 
 TRAIN_EPS = 10_000 # number of training self-play games
-EVAL_EPS = 10 # number of games to play against random agent
+EVAL_EPS = 500 # number of games to play against random agent
 SEED = 42
 
 set_seed(SEED)
+
+"""TERMINAL DISPLAY HELPERS"""
+USE_COLOR = sys.stdout.isatty()
+
+class C:
+    RESET = '\033[0m'
+    DIM = '\033[2m'
+    BOLD = '\033[1m'
+    RED = '\033[31m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[33m'
+    BLUE = '\033[34m'
+    CYAN = '\033[36m'
+    GRAY = '\033[90m'
+    BOLD_CYAN = '\033[1;36m'
+
+def _c(text, code):
+    return f'{code}{text}{C.RESET}' if USE_COLOR else text
+
+def _fmt_wld(w_perc, l_perc, w_l_d):
+    """format a win/loss/draw percentage triple with a raw record, colorized"""
+    d_perc = 100 - w_perc - l_perc
+    w = _c(f'{w_perc:5.1f}%W', C.GREEN)
+    l = _c(f'{l_perc:5.1f}%L', C.RED)
+    d = _c(f'{d_perc:5.1f}%D', C.GRAY)
+    record = _c(f'({w_l_d[0]}-{w_l_d[1]}-{w_l_d[2]})', C.DIM)
+    return f'{w} {l} {d} {record}'
+
+def _fmt_td(td):
+    """format a timedelta as seconds with millisecond precision, e.g. '0.739s'"""
+    return f'{td.total_seconds():.3f}s'
+
+def _fmt_eta(td):
+    """format a timedelta as H:MM:SS, dropping microseconds"""
+    return str(datetime.timedelta(seconds=int(td.total_seconds())))
+
+def _timestamp():
+    return _c(datetime.datetime.now().strftime('%H:%M:%S'), C.DIM)
 
 """TRAINING HELPER FUNCTIONS"""
 def preprocess_obs(observation):
@@ -149,7 +188,9 @@ def eval_agent(rl_agent, train_ep):
     p2_l_perc = p2_w_l_d[1] * 100 / sum(p2_w_l_d)
 
     # display performance in terminal
-    print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} EP={train_ep} Agent Performance, as P1: {p1_w_perc:.2f}% win, {p1_l_perc:.2f}% loss,  {p1_w_l_d}, as P2: {p2_w_perc:.2f}% win, {p2_l_perc:.2f}% loss, {p2_w_l_d}')
+    pct = train_ep * 100 / TRAIN_EPS
+    ep_label = _c(f'EP {train_ep:>6}/{TRAIN_EPS} ({pct:5.1f}%)', C.BOLD_CYAN)
+    print(f'{_timestamp()} {ep_label} │ P1 {_fmt_wld(p1_w_perc, p1_l_perc, p1_w_l_d)}  │ P2 {_fmt_wld(p2_w_perc, p2_l_perc, p2_w_l_d)}')
     
     # log in CSV file
     csv_filename = 'agent_performance.csv'
@@ -263,13 +304,13 @@ for ep in range(TRAIN_EPS):
     agent1.update()
     train_time_total += datetime.datetime.now() - ep_start_time
 
-    if (episode_num % 10 == 0) or episode_num == TRAIN_EPS:
+    if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
         eval_start_time = datetime.datetime.now()
         eval_agent(agent1, episode_num)
         eval_time_total += datetime.datetime.now() - eval_start_time
         eval_call_count += 1
 
-    if episode_num == 1 or episode_num % 10 == 0:
+    if episode_num == 1 or episode_num % 1000 == 0:
         avg_time_per_train_ep = train_time_total / episode_num
         avg_time_per_eval_call = (eval_time_total / eval_call_count) if eval_call_count > 0 else datetime.timedelta()
 
@@ -278,7 +319,10 @@ for ep in range(TRAIN_EPS):
 
         eta = (avg_time_per_train_ep * remaining_train_eps) + (avg_time_per_eval_call * remaining_eval_calls)
         eta_completion = datetime.datetime.now() + eta
-        print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} EP={episode_num}/{TRAIN_EPS} | Avg/TrainEP: {avg_time_per_train_ep} | Avg/EvalCall: {avg_time_per_eval_call} | ETA: {eta} (done at {eta_completion.strftime("%Y-%m-%d %H:%M:%S")})')
+        pct = episode_num * 100 / TRAIN_EPS
+        print(f'{_timestamp()} EP {episode_num:>6}/{TRAIN_EPS} ({pct:5.1f}%) │ '
+              f'train/ep {_fmt_td(avg_time_per_train_ep)}  eval/call {_fmt_td(avg_time_per_eval_call)} │ '
+              f'ETA {_c(_fmt_eta(eta), C.YELLOW)} (done {eta_completion.strftime("%Y-%m-%d %H:%M:%S")})')
 
     if (episode_num % 1000 == 0) or episode_num == TRAIN_EPS:
         with open(f'board_states_eps{episode_num-1000}-{episode_num-1}_log.json', 'w') as f:
@@ -291,6 +335,6 @@ env.close()
 total_elapsed = datetime.datetime.now() - start_time
 avg_time_per_train_ep = train_time_total / TRAIN_EPS
 avg_time_per_eval_call = (eval_time_total / eval_call_count) if eval_call_count > 0 else datetime.timedelta()
-print(f'\n{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")} Done: {TRAIN_EPS} episodes in {total_elapsed} '
-      f'(train: {train_time_total}, avg {avg_time_per_train_ep}/ep | '
-      f'eval: {eval_time_total} over {eval_call_count} calls, avg {avg_time_per_eval_call}/call)')
+print(f'\n{_timestamp()} {_c("Done", C.BOLD + C.GREEN)}: {TRAIN_EPS} episodes in {_fmt_eta(total_elapsed)} │ '
+      f'train: {_fmt_eta(train_time_total)} (avg {_fmt_td(avg_time_per_train_ep)}/ep) │ '
+      f'eval: {_fmt_eta(eval_time_total)} over {eval_call_count} calls (avg {_fmt_td(avg_time_per_eval_call)}/call)')
