@@ -1,6 +1,8 @@
 from envs.tictactoe import tictactoe
 from agents.muzero.muzero import MuZeroAgent, set_seed
 import os
+import time
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -9,8 +11,23 @@ import matplotlib.pyplot as plt
 EVAL_EPS = 10 # number of games to play against random agent
 ROUNDS = 10
 SEED = 42
+EPISODES_PER_ROUND = 2 * EVAL_EPS # each round plays as both player 1 and player 2
 
 set_seed(SEED)
+
+# elapsed seconds for every evaluation episode played so far, across all rounds
+episode_times = []
+
+def _record_episode_time(elapsed):
+    """record an episode's duration and, on the very first episode, use it to
+    project how long the whole ROUNDS loop will take"""
+    episode_times.append(elapsed)
+    if len(episode_times) == 1:
+        estimated_round_time = elapsed * EPISODES_PER_ROUND
+        estimated_total_time = estimated_round_time * ROUNDS
+        print(f"First evaluation episode took {elapsed:.3f}s")
+        print(f"  -> estimated time per round: {estimated_round_time:.2f}s")
+        print(f"  -> estimated total time for {ROUNDS} rounds: {timedelta(seconds=estimated_total_time)}")
 
 def eval_agent(rl_agent):
     """
@@ -30,11 +47,12 @@ def eval_agent(rl_agent):
     }
 
     for ep in range(EVAL_EPS):
+        ep_start = time.perf_counter()
         env.reset(seed=SEED)
         for a in env.agent_iter():
             agent = agents[a]
             observation, reward, termination, truncation, info = env.last()
-            
+
             if termination or truncation:
                 action = None
             else:
@@ -46,7 +64,7 @@ def eval_agent(rl_agent):
 
             env.step(action)
 
-            # when the game is terminated 
+            # when the game is terminated
             # and two players are still present in environment's
             # logging dictionary
             if len(env.terminations.keys()) == 2:
@@ -59,6 +77,7 @@ def eval_agent(rl_agent):
                         p1_w_l_d[1] += 1
                     else:
                         p1_w_l_d[2] += 1
+        _record_episode_time(time.perf_counter() - ep_start)
     env.close()
 
 
@@ -71,11 +90,12 @@ def eval_agent(rl_agent):
     }
 
     for ep in range(EVAL_EPS):
+        ep_start = time.perf_counter()
         env.reset(seed=SEED)
         for a in env.agent_iter():
             agent = agents[a]
             observation, reward, termination, truncation, info = env.last()
-            
+
             if termination or truncation:
                 action = None
 
@@ -88,7 +108,7 @@ def eval_agent(rl_agent):
 
             env.step(action)
 
-            # when the game is terminated 
+            # when the game is terminated
             # and two players are still present in environment's
             # logging dictionary
             if len(env.terminations.keys()) == 2:
@@ -101,6 +121,7 @@ def eval_agent(rl_agent):
                         p2_w_l_d[1] += 1
                     else:
                         p2_w_l_d[2] += 1
+        _record_episode_time(time.perf_counter() - ep_start)
     env.close()
 
     # calculate win percentages
@@ -159,6 +180,14 @@ for i in range(ROUNDS):
     data['p2_w_perc'].append(p1_w_perc)
     data['p2_l_perc'].append(p1_l_perc)
     data['p2_d_perc'].append(p1_d_perc)
+
+    # updated ETA based on the average episode time observed so far
+    avg_episode_time = sum(episode_times) / len(episode_times)
+    remaining_episodes = (ROUNDS - (i + 1)) * EPISODES_PER_ROUND
+    remaining_time = avg_episode_time * remaining_episodes
+    eta = datetime.now() + timedelta(seconds=remaining_time)
+    print(f"Round {i + 1}/{ROUNDS} done | avg episode time: {avg_episode_time:.3f}s | "
+          f"estimated remaining: {timedelta(seconds=remaining_time)} | ETA: {eta.strftime('%Y-%m-%d %H:%M:%S')}")
 
 # display histogram
 df = pd.DataFrame(data=data)
