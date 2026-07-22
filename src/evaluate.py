@@ -177,9 +177,9 @@ for i in range(ROUNDS):
     data['p1_w_perc'].append(p1_w_perc)
     data['p1_l_perc'].append(p1_l_perc)
     data['p1_d_perc'].append(p1_d_perc)
-    data['p2_w_perc'].append(p1_w_perc)
-    data['p2_l_perc'].append(p1_l_perc)
-    data['p2_d_perc'].append(p1_d_perc)
+    data['p2_w_perc'].append(p2_w_perc)
+    data['p2_l_perc'].append(p2_l_perc)
+    data['p2_d_perc'].append(p2_d_perc)
 
     # updated ETA based on the average episode time observed so far
     avg_episode_time = sum(episode_times) / len(episode_times)
