@@ -25,9 +25,11 @@ def _record_episode_time(elapsed):
     if len(episode_times) == 1:
         estimated_round_time = elapsed * EPISODES_PER_ROUND
         estimated_total_time = estimated_round_time * ROUNDS
+        eta = datetime.now() + timedelta(seconds=estimated_total_time)
         print(f"First evaluation episode took {elapsed:.3f}s")
         print(f"  -> estimated time per round: {estimated_round_time:.2f}s")
         print(f"  -> estimated total time for {ROUNDS} rounds: {timedelta(seconds=estimated_total_time)}")
+        print(f"  -> ETA: {eta.strftime('%Y-%m-%d %H:%M:%S')}")
 
 def eval_agent(rl_agent):
     """
@@ -169,7 +171,7 @@ data = {
     'p2_l_perc':[],
     'p2_d_perc':[],
 }
-
+print()
 for i in range(ROUNDS):
     p1_w_perc, p1_l_perc, p1_d_perc, p2_w_perc, p2_l_perc, p2_d_perc = eval_agent(agent1)
 
