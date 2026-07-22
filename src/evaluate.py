@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-EVAL_EPS = 10 # number of games to play against random agent
-ROUNDS = 2
+EVAL_EPS = 100 # number of games to play against random agent
+ROUNDS = 100
 SEED = 42
 EPISODES_PER_ROUND = 2 * EVAL_EPS # each round plays as both player 1 and player 2
 
@@ -145,23 +145,23 @@ env = tictactoe.env()
 # initialize MuZero agent with config
 config = {
     'batch_size': 128,
-    'buffer_size': 10_000,
+    'buffer_size': 3000,
     'min_replay_size': 1500,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 1e-3,
     'weight_decay': 1e-4,
-    'max_iters': 50,
-    'train_iters': 2,
+    'max_iters': 100,
+    'train_iters': 5,
     'gamma': 1.0,
     'k_unroll_steps': 5,
     'temperature': 1.0,
     'temp_schedule': [(0.6*10_000, 1.0), (0.9*10_000, 0.5), (10**9, 0.25)],
     'dirichlet_alpha': 1.0,
-    'root_exploration_fraction': 0.25
+    'root_exploration_fraction': 0.4
 }
 
-load_dir = os.path.join('results','_0')
+load_dir = os.path.join('results','_2')
 agent1 = MuZeroAgent(environment=env, config=config, load=True, load_dir=load_dir)
 
 data = {
