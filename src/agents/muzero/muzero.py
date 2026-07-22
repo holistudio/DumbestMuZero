@@ -371,7 +371,7 @@ class MuZeroAgent(object):
     """
     MuZero agent class
     """
-    def __init__(self, environment, config, load=False):
+    def __init__(self, environment, config, load=False, load_dir=None):
         self.env = environment
         self.observation_space = self.flatten(environment.observation_space('player_1'))
         self.obs_size = self.observation_space.shape
@@ -432,7 +432,7 @@ class MuZeroAgent(object):
         self.prediction_function.eval()
 
         if load:
-            self.load_model()
+            self.load_model(load_dir)
         pass
     
     """model utilities"""
@@ -454,14 +454,18 @@ class MuZeroAgent(object):
         # print("Models and optimizer saved.")
         pass
 
-    def load_model(self):
+    def load_model(self, filepath=None):
         """
         load neural network and optimizer parameters
+
+        filepath: directory containing the saved params, relative to this
+        file's directory (e.g. 'results/04'). defaults to this file's directory.
         """
 
-        # TODO: allow loading from a specified directory
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        
+        if filepath is not None:
+            base_dir = os.path.join(base_dir, filepath)
+
         paths = {
             'state': os.path.join(base_dir, 'mu_state_rep_params.pth.tar'),
             'dynamics': os.path.join(base_dir, 'mu_dyn_func_params.pth.tar'),
