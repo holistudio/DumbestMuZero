@@ -2,3 +2,4 @@
 # torchvision
 pettingzoo[classic]
 matplotlib
+pandas
