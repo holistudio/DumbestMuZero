@@ -3,13 +3,14 @@ from agents.muzero.muzero import MuZeroAgent, set_seed
 import os
 import time
 from datetime import datetime, timedelta
+import json
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 EVAL_EPS = 10 # number of games to play against random agent
-ROUNDS = 10
+ROUNDS = 2
 SEED = 42
 EPISODES_PER_ROUND = 2 * EVAL_EPS # each round plays as both player 1 and player 2
 
@@ -190,9 +191,13 @@ for i in range(ROUNDS):
     eta = datetime.now() + timedelta(seconds=remaining_time)
     print(f"Round {i + 1}/{ROUNDS} done | avg episode time: {avg_episode_time:.3f}s | "
           f"estimated remaining: {timedelta(seconds=remaining_time)} | ETA: {eta.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(p1_w_perc, p1_l_perc, p1_d_perc, p2_w_perc, p2_l_perc, p2_d_perc)
 
 # display histograms: rows are player 1 / player 2, columns are win / loss / draw
 df = pd.DataFrame(data=data)
+eval_data_file = os.path.join('agents','muzero',load_dir,'eval_results.json')
+with open(eval_data_file,'w') as f:
+    json.dump(data,f,indent=4)
 
 fig, axes = plt.subplots(2, 3, figsize=(12, 7))
 
