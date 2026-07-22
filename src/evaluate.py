@@ -189,8 +189,23 @@ for i in range(ROUNDS):
     print(f"Round {i + 1}/{ROUNDS} done | avg episode time: {avg_episode_time:.3f}s | "
           f"estimated remaining: {timedelta(seconds=remaining_time)} | ETA: {eta.strftime('%Y-%m-%d %H:%M:%S')}")
 
-# display histogram
+# display histograms: rows are player 1 / player 2, columns are win / loss / draw
 df = pd.DataFrame(data=data)
-df['p1_w_perc'].hist(bins=np.arange(50,101,1))
-df['p2_w_perc'].hist(bins=np.arange(50,101,1))
+
+fig, axes = plt.subplots(2, 3, figsize=(12, 7))
+
+cols = [
+    ('p1_w_perc', 'Player 1 Win %', np.arange(50, 101, 1), '#2ca02c'),
+    ('p1_l_perc', 'Player 1 Loss %', np.arange(0, 31, 1), '#d62728'),
+    ('p1_d_perc', 'Player 1 Draw %', np.arange(0, 21, 1), '#7f7f7f'),
+    ('p2_w_perc', 'Player 2 Win %', np.arange(50, 101, 1), '#2ca02c'),
+    ('p2_l_perc', 'Player 2 Loss %', np.arange(0, 31, 1), '#d62728'),
+    ('p2_d_perc', 'Player 2 Draw %', np.arange(0, 21, 1), '#7f7f7f'),
+]
+
+for ax, (col, title, bins, color) in zip(axes.flat, cols):
+    df[col].hist(bins=bins, ax=ax, color=color)
+    ax.set_title(title)
+
+fig.tight_layout()
 plt.show()
