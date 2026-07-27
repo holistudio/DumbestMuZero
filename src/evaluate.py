@@ -145,23 +145,24 @@ env = tictactoe.env()
 # initialize MuZero agent with config
 config = {
     'batch_size': 128,
-    'buffer_size': 3000,
+    'buffer_size': 10_000,
     'min_replay_size': 1500,
     'state_size': 16,
     'hidden_size': 64,
     'lr': 1e-3,
     'weight_decay': 1e-4,
-    'max_iters': 100,
-    'train_iters': 5,
+    'max_iters': 50,
+    'train_iters': 2,
     'gamma': 1.0,
     'k_unroll_steps': 5,
     'temperature': 1.0,
     'temp_schedule': [(0.6*10_000, 1.0), (0.9*10_000, 0.5), (10**9, 0.25)],
     'dirichlet_alpha': 1.0,
-    'root_exploration_fraction': 0.4
+    'root_exploration_fraction': 0.25
 }
 
-load_dir = os.path.join('results','_2')
+
+load_dir = os.path.join('results','_0')
 agent1 = MuZeroAgent(environment=env, config=config, load=True, load_dir=load_dir)
 
 data = {
@@ -202,16 +203,19 @@ with open(eval_data_file,'w') as f:
 fig, axes = plt.subplots(2, 3, figsize=(12, 7))
 
 cols = [
-    ('p1_w_perc', 'Player 1 Win %', np.arange(50, 101, 1), '#2ca02c'),
-    ('p1_l_perc', 'Player 1 Loss %', np.arange(0, 31, 1), '#d62728'),
-    ('p1_d_perc', 'Player 1 Draw %', np.arange(0, 21, 1), '#7f7f7f'),
-    ('p2_w_perc', 'Player 2 Win %', np.arange(50, 101, 1), '#2ca02c'),
-    ('p2_l_perc', 'Player 2 Loss %', np.arange(0, 31, 1), '#d62728'),
-    ('p2_d_perc', 'Player 2 Draw %', np.arange(0, 21, 1), '#7f7f7f'),
+    ('p1_w_perc', 'Player 1 Win %', np.arange(50, 101, 1), "#57c157"),
+    ('p1_l_perc', 'Player 1 Loss %', np.arange(0, 51, 1), "#e64444"),
+    ('p1_d_perc', 'Player 1 Draw %', np.arange(0, 51, 1), "#aeaeae"),
+    ('p2_w_perc', 'Player 2 Win %', np.arange(50, 101, 1), '#57c157'),
+    ('p2_l_perc', 'Player 2 Loss %', np.arange(0, 51, 1), '#e64444'),
+    ('p2_d_perc', 'Player 2 Draw %', np.arange(0, 51, 1), '#aeaeae'),
 ]
 
 for ax, (col, title, bins, color) in zip(axes.flat, cols):
     df[col].hist(bins=bins, ax=ax, color=color)
+    median = df[col].median()
+    ax.axvline(median, color='black', linestyle='--', linewidth=1)
+    ax.grid(None)
     ax.set_title(title)
 
 fig.tight_layout()
