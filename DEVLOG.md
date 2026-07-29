@@ -21,6 +21,8 @@ A few more major TODOs before I feel comfortable publishing the website:
 
 After double checking the code follows MuZero intent (no explicit game model, no boostrapping/intermediate reward training for board games), finally got some decent hyperparameter tuning results.
 
+### `config_0`
+
 Starting with this `config_0`:
 
 ```python
@@ -51,6 +53,7 @@ the final checkpoint model is then evaluated against a random agent for 100 game
 
 <img src="./img/260722_config_0.png">
 
+### `config_1`
 
 `config_1`: relative to `config_0`, `max_iters = 50` increase to `200`
 
@@ -61,6 +64,8 @@ training performance:
 the final checkpoint model evaluation:
 
 <img src="./img/260722_config_1.png">
+
+### `config_2`
 
 `config_2`: relative to `config_0`
 - `max_iters = 50` increase to `100`
@@ -75,6 +80,8 @@ training performance:
 the final checkpoint model evaluation:
 
 <img src="./img/260722_config_2.png">
+
+### `config_3`
 
 `config_3`: relative to `config_2`
 - `max_iters = 100` increase to `200`
