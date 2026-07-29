@@ -1,5 +1,200 @@
 # DEV LOG
 
+## 2026-07-29
+
+Along the same lines as "diagnosing" rather than "chase performance": I'm starting a website! [Local dev](https://github.com/holistudio/ttt) for now.
+
+Right now it allows you to play against MuZero and then shows the internal action probabilities that result after the MCTS when given the current board and how often
+
+<img src="./img/260729_ttt.png">
+
+
+A few more major TODOs before I feel comfortable publishing the website:
+- [ ] review whether tictactoe.py changes impacted the MCTS agent code I wrote earlier
+- [ ] code up then minimax algorithm for tictactoe and use the resulting minimax agent as the "perfect player" for evaluations against MuZero as well
+- [ ] include both minimax and MCTS on the website as well
+- [ ] there is another way I'm considering evaluating agents: just give them a specific tic-tac-toe board where there is a clear right answer, where either the current player is about to win, so the correct answer must be the third piece that connects 3 OR the opponent is about to win so the correct answer is to block.
+- [ ] my current code does track the frequency of board states visited during training/self play at 1000 training episode training intervals. will need to think and iterate on how to maybe visualize that on the website...
+
+
+## 2026-07-22
+
+After double checking the code follows MuZero intent (no explicit game model, no boostrapping/intermediate reward training for board games), finally got some decent hyperparameter tuning results.
+
+Starting with this `config_0`:
+
+```python
+config_0 = {
+    'batch_size': 128,
+    'buffer_size': TRAIN_EPS, #10_000
+    'min_replay_size': 1500,
+    'state_size': 16,
+    'hidden_size': 64,
+    'lr': 1e-3,
+    'weight_decay': 1e-4,
+    'max_iters': 50,
+    'train_iters': 2,
+    'gamma': 1.0,
+    'k_unroll_steps': 5,
+    'temperature': 1.0,
+    'temp_schedule': [(0.6*TRAIN_EPS, 1.0), (0.9*TRAIN_EPS, 0.5), (10**9, 0.25)],
+    'dirichlet_alpha': 1.0,
+    'root_exploration_fraction': 0.25
+}
+```
+
+training performance: always train via self-play. every 1000 episodes have the MuZero agent as player 1 or 2 play 500 games against random agent and record win-loss-draw statistics.
+
+<img src="./img/260722_config_0_train.png">
+
+the final checkpoint model is then evaluated against a random agent for 100 games over 100 "rounds" (via `evaluate.py` or `evaluate_parallel.py`) and the distribution of wins-loss-draws over the 100 games is plotted:
+
+<img src="./img/260722_config_0.png">
+
+
+`config_1`: relative to `config_0`, `max_iters = 50` increase to `200`
+
+training performance: 
+
+<img src="./img/260722_config_1_train.png">
+
+the final checkpoint model evaluation:
+
+<img src="./img/260722_config_1.png">
+
+`config_2`: relative to `config_0`
+- `max_iters = 50` increase to `100`
+- `train_iters = 2` increase to `5`
+- `buffer_size = 10_000` decrease to `3000`
+- `root_exploration_fraction = 0.25` increase to `0.4`
+
+training performance: 
+
+<img src="./img/260722_config_2_train.png">
+
+the final checkpoint model evaluation:
+
+<img src="./img/260722_config_2.png">
+
+`config_3`: relative to `config_2`
+- `max_iters = 100` increase to `200`
+
+training performance: 
+
+<img src="./img/260722_config_3_train.png">
+
+the final checkpoint model evaluation:
+
+<img src="./img/260722_config_3.png">
+
+My takeaways:
+- In terms of training the other 3 configs relative to `config_0` seem to do slightly better in terms final loss rate against random agent.
+- In terms of evaluation distributions, focus on the loss-rates against random as well: `config_2` seems to do the best of all, with relatively lower rates of loss as player 1 or player 2
+- The catch is that `config_2` MuZero has the lowest median P2 win-rate against random of the 4 configs, below 70% unlike the other three. Instead it has the highest draw rates of the 4 configs, suggesting that this version doesn't recognize win opportunities but can sorta recover and end games in a draw.
+- Increasing MCTS simulations doesn't seem to help all that much beyond `max_iters=100`
+
+All that said, as much as I would like to continue chasing performance, I'm thinking of taking a step back to **diagnose** and dig deeper into the internals of MuZero. This would help me first review the key changes made to the code and component's of how MuZero learns and hopefully reveal how the intermediate computations change when the hyperparameters change. In other words, figure out which neural network functions should produce terminal outputs/logs to expose their internal values/updates. If I don't do this I may as well shoot in the dark twiddling with hyperparameters.
+
+## 2026-07-17
+
+`muzero.py`
+- `sample_batch()` absorbing state (unrolled steps beyond end of the game): zero soft target policy. Previous code added a uniform policy for absorbing states which doesn't quite line up with the empty target policy presented in MuZero paper's associated pseudocode.
+- Also changed `step()` to sample actions with same temperature throughout the game regardless of number of moves
+
+Things started to look like MuZero's performance could continue to improve: hitting 90% win rate as player 1 against random, 56-75% win rate as player 2 against random.
+
+Then I prompted Claude to suggest additional revisions so that this "imbalance" between player 1 and player 2 performance could be fixed. Claude recommended the following change to `search()`:
+
+```python
+# update node mean values back up to the root node
+                if legal_actions:
+                    leaf_value = value.item()
+                else:
+                    # terminal: the opponent's last move ended the game.
+                    # a completed line means the player-to-move here just lost;
+                    # an empty board with no line is a draw.
+                    leaf_value = -1.0 if self.is_win(obs, action_history) else 0.0
+                    last_node.terminal_value = leaf_value  # cache for re-visits
+                self.backup(leaf_value, search_path)
+```
+
+On the surface this makes sense: differentiate between draws and losses during search...HOWEVER
+- for whatever reason, implementing this change caused the performance during the first 1000 episodes to jump to 90% win rate as player 1 against random and 80% win rate as player 2 against random...when I purposely set up such that no neural network updates occur in the first 1000 episodes.
+- which then lead to the further prompting and realization that is kind of logic is "leaking" the explicit game simulator to MuZero, when the whole point is to have MuZero learn a game world model!
+- Further review of the code with Claude revealed there are several spots with Alpha-Zero like tree search...so the major task ahead now is to fix the code so that it follows the MuZero intent "to the letter"
+- The major issue with the original code was that illegal actions were masked in subsequent child nodes of the MCTS. MuZero only masks illegal actions for the root node but doesn't repeatedly do that in the subsequent tree nodes in the rest of MCTS simulations.
+
+Additional revisions:
+
+`muzero.py`
+- `sample_batch()` doesn't bootstrap rewards or tracks "intermediate rewards" for board games (only use the final outcome as reward), as specified in MuZero paper.
+- `update()` accordingly doesn't include a loss term for the reward predicted by the `DynamicsFunction` anymore
+- `DynamicsFunction` now takes in action as a 9-dim one-hot encoded vector rather than a single scalar integer ranging from 0-8
+- `search()` does not add Dirichlet exploration noise when MuZero is running `act()` during inference
+- hidden state values predicted by `StateFunction` and `DynamicsFunction` are always normalized to between 0 and 1 per Appendix G of the MuZero paper
+- `sample_batch()` samples from any position/point in the game trajectory uniformly. unrolling past the terminal state is handled via absorbing states
+- He/Kaiming weight initialization: a quick experiment with nanoGPT style initialization found that doesn't work well. Claude recommended this initialization method instead...
+
+`train.py`
+- after the game is over, record the finished board for the player that did NOT make the final move as well, ensuring a complete experience record
+
+Side note: I finally realized I should write a `random_test.py` script which just shows win-lose-draw rates of random agent self-play over many games. This revealed the following statistics:
+
+```
+P1  62.8%W  24.2%L  13.0%D (314-121-65)  │ P2  27.0%W  61.2%L  11.8%D (135-306-59)
+```
+
+which, sadly, in hindsight, means that my earlier MuZero wasn't really doing that much better than random! Dummy baselines are important.
+
+## 2026-07-16
+
+`muzero.py` and `train.py`
+- Temperature scaling for selecting actions: originally the first four moves were made with temperature scaling with the rest of the moves using greedy action selection. generally best to keep the temperature constant throughout the games i.e., action = self.search(obs, self.current_temperature()) always. Update temperature schedule across training episodes: temperature=1 for first 60% of episodes, temp=0.5 for the next 30%, and temp=0.25 for the next 10%.
+- I also introduced the `min_replay_size` hyperparameter, which enables the neural networks to start learning/updating even before the entire replay buffer is full.
+
+That said, I see some value for now in keeping the `min_replay_size=1500` or something so that I can see one interval of training where I expect no updates to occur and performance to not improve, a kind of training sanity check.
+
+## 2026-07-15
+
+### Status
+
+In discussing with [Lazarus42](https://github.com/Lazarus42) about his pull request on DumbestMuZero repo a number of changes result in the following training performance: Somewhere after 5000 episodes but before 66000 episodes
+- Basically 0% lose rate when MuZero plays as P1 vs random agent
+- 5-8% lose rate when MuZero plays as P2 vs random agent (still not great compared to human player!)
+
+The pull request documents all changes but it is unclear which ones led to the performance improvement.
+
+There's two ways I could go about figuring out which revisions improve the performance...
+
+### Just-Accept-PR-way
+
+I can just accept the entire request and move onto a different branch: this would be the quickest way to test if I can run and get better results on my machine
+
+### Slow way
+
+Alternatively keep the pull request open and implement each change one by one, especially with initial guess on ranking the changes described below and seeing each time how the performance changes. 
+
+#### `tictactoe.py`
+
+- `outcome()` now returns +1 or -1 depending on the current player's perspective. I feel like the previous code technically did this as well, but through a more convoluted set of if statements, so the code was simplified in terms of lines of code and more likely error-free...
+- `transition()` and `_get_mask()` if the game is over, all actions are masked with 0s
+
+#### `muzero.py`
+
+- `preprocess_obs()` a canonical (player-relative) torch tensor is now given to the neural nets. Perhaps most significantly, the previous code always encoded X pieces (player 1) into `1` and O pieces (player 2) into `2` on the board tensor regardless of the current player. Now the tensor's values depend on whoever the current player is, where current player's pieces always appear as `1` and opponent pieces always appear as `-1` on the board tensor.
+- `last_node.R = reward` found a major typo! (used to be `last_node.reward = reward` when `Node` class doesn't have a `reward` attribute!)
+- `pUCT()` negates/flips the sign of Q-values of child nodes for choosing actions from parent node (negamax)
+- `backup()` value starts from the leaf player's perspective. rewards are computed from the perspective of the player who acted at the parent node (similar sign flip as negamax above)
+- `search()` value normalization statistics are local to one search tree. before the min/max Q values were incorrectly re-used across MCTS simulations.
+
+#### `train.py`
+- always update experience after every environment step
+- simply break the loop if game terminates
+
+These changes above seem to have helped a lot. MuZero as P1 is now winning 67-82% of the time now against a random agent, but more signficantly, MuZero as P2 is winning 52-72% against a random agent. That's a major jump from the 30-45% I saw before.
+
+So far things look promising.
+
 ## 2026-01-05
 
 Took a break from this just to not think about tic-tac-toe for awhile...
