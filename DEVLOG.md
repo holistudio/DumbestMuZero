@@ -33,7 +33,7 @@ Will try to do a more major retrospective post / README update later this week.
 
 As of this morning, the latest training results look like this: Basically when MuZero plays against a random agent in tic-tac-toe, it wins around 50-70% of the time as player 1 and wins around 30-45% of the time as player 2.
 
-<img src="img/251227_latest.png">
+<img src="img/251227_latest_12.png">
 
 The above is after training for 5000 games of MuZero self-play with the following config/hyperparameters:
 
