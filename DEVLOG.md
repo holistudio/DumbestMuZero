@@ -113,7 +113,7 @@ Things started to look like MuZero's performance could continue to improve: hitt
 Then I prompted Claude to suggest additional revisions so that this "imbalance" between player 1 and player 2 performance could be fixed. Claude recommended the following change to `search()`:
 
 ```python
-# update node mean values back up to the root node
+                # update node mean values back up to the root node
                 if legal_actions:
                     leaf_value = value.item()
                 else:
