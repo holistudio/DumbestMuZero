@@ -95,37 +95,37 @@ class UCTAgent(object):
         return parent_node, parent_state
     
     def default_policy(self, state):
-        # print('# START BOARD')
-        # display_board(state)
-        # print('# DEFAULT POLICY')
-        # c = 0
+        print('\n\n# LEAF START BOARD')
+        display_board(state)
+        print('# DEFAULT POLICY')
+        steps = 0
         while not self.env.check_terminal(state):
             actions = self.env.available_actions(state)
             num_actions = len(actions)
             idx = np.random.randint(0,num_actions)
             action = actions[idx]
             state = self.env.transition(state, action)
-            # print(f'## NEXT SIM STATE {c}')
-            # print(state["observation"][:,:,0])
-            # print(state["observation"][:,:,1])
-            # display_board(state)
-            # c += 1
-            # pause = input('##')
+            print(f'## NEXT SIM STATE {steps}')
+            print(state["observation"][:,:,0])
+            print(state["observation"][:,:,1])
+            display_board(state)
+            steps += 1
+            pause = input('##')
         outcome = self.env.outcome(state) 
-        # print(f'# terminal, outcome: {self.env.check_terminal(state)}, {outcome}')
-        # pause = input('# END OF SIM\n')
+        print(f'# terminal, outcome: {self.env.check_terminal(state)}, {outcome}, steps={steps}')
+        pause = input('# END OF SIM\n')
         return outcome
     
     def backup_negamax(self, node, outcome):
-        # print(f'# BACKUP RECEIVES Outcome: {outcome}\n')
+        print(f'# BACKUP RECEIVES Outcome: {outcome}\n')
         while node is not None:
-            # display_board(node.state)
-            # print(f"# BOARD Outcome: {outcome}\n")
+            display_board(node.state)
+            print(f"# BOARD Outcome: {outcome}\n")
             node.N += 1
             node.Q.append(outcome)
             outcome = -outcome
             node = node.parent
-        # pause = input('# END BACKUP\n')
+        pause = input('# END BACKUP\n')
     
     def final_action(self, root_node, initial_state):
         print('# DECIDE ACTION')
@@ -146,7 +146,7 @@ class UCTAgent(object):
                 best_action = a
         print(f"\n# PLACE at CELL {best_action}")
         display_board(self.env.transition(initial_state, best_action))
-        # pause = input('#')
+        pause = input('#')
         return best_action
 
     def uct_search(self, initial_state):
@@ -156,8 +156,8 @@ class UCTAgent(object):
             new_node, new_state = self.tree_policy(root_node, initial_state)
             outcome = self.default_policy(new_state)
             self.backup_negamax(new_node, outcome)
-            # pause = input('END OF SEARCH ITER')
-        # print('END OF UCT SEARCH')
+            pause = input('END OF SEARCH ITER')
+        print('END OF UCT SEARCH')
 
         # return self.best_child(root_node, initial_state).incoming_action
         return self.final_action(root_node, initial_state)

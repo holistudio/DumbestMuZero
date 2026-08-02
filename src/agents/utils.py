@@ -13,8 +13,10 @@ def display_board(observation):
     # If total pieces is odd, it's player 2's turn (current player is p2)
     if total_pieces % 2 == 0:
         p1_plane, p2_plane = current_player_plane, opponent_plane
+        move_into_piece = 'O'
     else:
         p2_plane, p1_plane = current_player_plane, opponent_plane
+        move_into_piece = 'X'
 
     board = [
             [" "," "," "],
@@ -30,7 +32,7 @@ def display_board(observation):
 
     # print(p1_plane)
     # print(p2_plane)
-    print("BOARD")
+    print(f"BOARD  ({move_into_piece} just moved)")
     print("=====")
     for i,row in enumerate(board):
         row_disp = ("|").join(row)
