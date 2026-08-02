@@ -111,7 +111,10 @@ class UCTAgent(object):
             display_board(state)
             steps += 1
             pause = input('##')
-        outcome = self.env.outcome(state) 
+        # backup outcome sign depends which player moved INTO the leaf node
+        # relative to that player, odd number of steps suggests that player won
+        # even number of steps suggests player lost
+        outcome = self.env.outcome(state) if (steps % 2 == 1) else -self.env.outcome(state)
         print(f'# terminal, outcome: {self.env.check_terminal(state)}, {outcome}, steps={steps}')
         pause = input('# END OF SIM\n')
         return outcome
