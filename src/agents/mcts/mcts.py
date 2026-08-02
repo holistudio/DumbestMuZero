@@ -140,10 +140,7 @@ class UCTAgent(object):
             child_node = root_node.children[a]
             avg_q = sum(child_node.Q) / child_node.N if child_node.N > 0 else 0
             exploration_term = 2*self.C_p*np.sqrt(2*np.log(N)/child_node.N) if child_node.N > 0 else float('inf')
-            if avg_q >= 0:
-                print(f"### Action={a}, Expected Value=  {avg_q:.2f}, Num Visits= {child_node.N}, UCT Value= {avg_q+exploration_term:.2f}")
-            else:
-                print(f"### Action={a}, Expected Value= {avg_q:.2f}, Num Visits= {child_node.N}, UCT Value= {avg_q+exploration_term:.2f}")
+            print(f"### Action={a}, Num Visits= {child_node.N}({child_node.N/root_node.N:.2f}), Expected Value= {avg_q:.2f}, UCT Value= {avg_q+exploration_term:.2f}")
             if child_node.N > max_visits:
                 max_visits = child_node.N
                 best_action = a
