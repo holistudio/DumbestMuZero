@@ -229,6 +229,7 @@ class ReplayBuffer(object):
         # action direct from what was chosen by select_action (different from child visits if sampled)
         self.actions.append(action)
 
+        # action probabilities TODO
         self.target_policies.append(target_action_probs)
 
         # get the reward from environment
@@ -372,12 +373,15 @@ class MuZeroAgent(object):
     MuZero agent class
     """
     def __init__(self, environment, config, load=False, load_dir=None):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
         self.env = environment
         self.observation_space = self.flatten(environment.observation_space('player_1'))
         self.obs_size = self.observation_space.shape
+
         self.action_space = environment.action_space('player_1')
         self.action_size = self.action_space.n
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         # replay buffer for loading training batch data
         self.replay_buffer = ReplayBuffer(config['buffer_size'], config['batch_size'])
@@ -732,7 +736,7 @@ class MuZeroAgent(object):
             root_node = Node(0)
             root_node.to_play = 0
 
-            # encode observation into a hidden state represnetation
+            # encode observation into a hidden state representation
             initial_state = self.state_function(obs.to(self.device).unsqueeze(0))
 
             # predict initial policy logits and value
@@ -755,7 +759,7 @@ class MuZeroAgent(object):
                 # get leaf node's parent
                 parent_node = search_path[-2]
 
-                # get latest candidate action as a tensor
+                # get latest candidate action as a tensor/one-hot enc vector
                 latest_action = F.one_hot(
                     torch.tensor([action_history[-1]], device=self.device),
                     num_classes=self.action_size,
