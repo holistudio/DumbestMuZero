@@ -35,7 +35,7 @@ class Node(object):
     
 
 class UCTAgent(object):
-    def __init__(self, environment, C_p=0.7, max_iters=10_000):
+    def __init__(self, environment, C_p=0.7, max_iters=1000):
         self.C_p = C_p
         self.max_iters = max_iters
 
