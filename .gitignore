@@ -190,3 +190,4 @@ src/agent_performance.csv
 src/board_states_log.json
 /.vscode
 /results
+.DS_Store
