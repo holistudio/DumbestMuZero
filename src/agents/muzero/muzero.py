@@ -1,12 +1,13 @@
-import math
 import copy
-import random
+import math
 import os
-import numpy as np
+import random
 
+import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
+
 
 def min_max_normalize(state):
     """
@@ -45,7 +46,7 @@ class StateFunction(nn.Module):
         self.lin4 = nn.Linear(hidden_size, hidden_size)
         self.lin5 = nn.Linear(hidden_size, output_size)
         self.apply(self._init_weights)
-        pass
+        
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -84,7 +85,7 @@ class DynamicsFunction(nn.Module):
         self.apply(self._init_weights)
         torch.nn.init.normal_(self.reward_head.weight, mean=0.0, std=0.01)
         torch.nn.init.zeros_(self.reward_head.bias)
-        pass
+        
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -128,7 +129,7 @@ class PredictionFunction(nn.Module):
         torch.nn.init.zeros_(self.policy_head.bias)
         torch.nn.init.normal_(self.value_head.weight, mean=0.0, std=0.01)
         torch.nn.init.zeros_(self.value_head.bias)
-        pass
+        
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -150,7 +151,7 @@ class PredictionFunction(nn.Module):
         return p, v
 
 """MCTS DATA STRUCTURES"""
-class Node(object):
+class Node:
     """
     MCTS node 
     """
@@ -172,7 +173,7 @@ class Node(object):
 
         # child nodes
         self.children = {}
-        pass
+        
 
     def expanded(self):
         """
@@ -190,7 +191,7 @@ class Node(object):
             return 0
 
 """TRAINING DATA STRUCURES"""
-class ReplayBuffer(object):
+class ReplayBuffer:
     """
     replay buffer for storing entire game trajectories
     and training batch sampling 
@@ -208,7 +209,7 @@ class ReplayBuffer(object):
         self.target_policies = []
         self.rewards = []
         self.root_values = []
-        pass
+        
     
     def reset_trajectory(self):
         self.observations = []
@@ -217,7 +218,7 @@ class ReplayBuffer(object):
         self.target_policies = []
         self.rewards = []
         self.root_values = []
-        pass
+        
 
     def store_step(self, obs, player_turn, action, target_action_probs, reward, root_value):
         # observation vector
@@ -236,14 +237,14 @@ class ReplayBuffer(object):
         self.rewards.append(reward)
 
         self.root_values.append(root_value)
-        pass
+        
 
     def store_trajectory(self):
-        trajectory = dict(obs=self.observations, 
-                         turns=self.player_turns, actions=self.actions, 
-                         rewards=self.rewards, # dynamics function target
-                         target_policies=self.target_policies,
-                         root_values=self.root_values) # prediction function targets
+        trajectory = {'obs': self.observations, 
+                         'turns': self.player_turns, 'actions': self.actions, 
+                         'rewards': self.rewards, # dynamics function target
+                         'target_policies': self.target_policies,
+                         'root_values': self.root_values} # prediction function targets
         
         trajectory = copy.deepcopy(trajectory)
         self.buffer.append(trajectory)
@@ -251,7 +252,7 @@ class ReplayBuffer(object):
             self.buffer.pop(0)
 
         self.reset_trajectory()
-        pass
+        
 
     def sample_batch(self, k_unroll_steps, gamma, device):
         # Prepare lists to collect batch data
@@ -368,7 +369,7 @@ class ReplayBuffer(object):
                 torch.stack(legal_masks).to(device))
 
 """MUZERO"""
-class MuZeroAgent(object):
+class MuZeroAgent:
     """
     MuZero agent class
     """
@@ -437,7 +438,7 @@ class MuZeroAgent(object):
 
         if load:
             self.load_model(load_dir)
-        pass
+        
     
     """model utilities"""
     def save_model(self):
@@ -456,7 +457,7 @@ class MuZeroAgent(object):
                    os.path.join(base_dir, 'mu_optimizer_params.pth.tar'))
         
         # print("Models and optimizer saved.")
-        pass
+        
 
     def load_model(self, filepath=None):
         """
@@ -486,7 +487,7 @@ class MuZeroAgent(object):
         if os.path.exists(paths['optimizer']):
             self.optimizer.load_state_dict(torch.load(paths['optimizer'], map_location=self.device))
         print("Models and optimizer loaded.")
-        pass
+        
 
     """game environment helper functions"""
     def flatten(self, observation_space):
@@ -545,11 +546,9 @@ class MuZeroAgent(object):
         """
         keep track of min and max over entire search tree
         """
-        if node_mean_value > self.max_Q:
-            self.max_Q = node_mean_value
-        if node_mean_value < self.min_Q:
-            self.min_Q = node_mean_value
-        pass
+        self.max_Q = max(self.max_Q, node_mean_value)
+        self.min_Q = min(self.min_Q, node_mean_value)
+        
 
     def expansion(self, last_node, state, reward, policy_logits, actions):
         """
@@ -574,7 +573,7 @@ class MuZeroAgent(object):
             child = Node(policy[a]/policy_sum)
             child.to_play = 1 - last_node.to_play
             last_node.children[a] = child
-        pass
+        
 
     def pUCT(self, node, sum_visits):
         """
@@ -660,7 +659,7 @@ class MuZeroAgent(object):
                 parent = search_path[i - 1]
                 R = current_node.R
                 G = (R if parent.to_play == to_play else -R) + self.gamma * G
-        pass
+        
 
     def select_action(self, node, temperature):
         """
@@ -839,7 +838,7 @@ class MuZeroAgent(object):
 
             # after game is over advance the temperature schedule
             self.episodes_played += 1
-        pass
+        
 
     def current_temperature(self):
         """
@@ -983,4 +982,4 @@ class MuZeroAgent(object):
             self.save_model()
 
             # pause=input('done update()\n')
-            pass
+            
