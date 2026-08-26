@@ -4,7 +4,7 @@ from agents.utils import display_board
 
 """plain UCT search"""
 
-class Node(object):
+class Node:
     def __init__(self, state, available_actions, parent=None, incoming_action=None):
         self.parent = parent
         self.children = {} # keys are actions, values are Nodes
@@ -16,7 +16,6 @@ class Node(object):
         self.incoming_action = incoming_action
 
         self.state = state
-        pass
 
     def sample_untried_actions(self):
         # print(f"before: {self.untried_actions}")
@@ -30,19 +29,15 @@ class Node(object):
         return a
     
     def is_full_expanded(self):
-        if len(self.untried_actions) == 0:
-            return True
-        else:
-            return False
+        return len(self.untried_actions) == 0
     
 
-class UCTAgent(object):
+class UCTAgent:
     def __init__(self, environment, C_p=0.7, max_iters=1000):
         self.C_p = C_p
         self.max_iters = max_iters
 
         self.env = environment
-        pass
 
     def expand(self, parent_node, parent_state):
         # print('### EXPANDING')
